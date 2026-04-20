@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Task Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .animate-spin { animation: spin 1s linear infinite; }
+    * { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body class="m-0 p-0">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useCallback, useMemo, useEffect, useRef, Fragment } = React;
+
+    /* ═══════════════════════════════════════════════════
+       Inline SVG Icons (kein lucide-react nötig)
+       ═══════════════════════════════════════════════════ */
+    const I = ({ d, size = 24, className = "", strokeWidth = 2, ...p }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} {...p}>
+        {typeof d === "string" ? <path d={d} /> : d}
+      </svg>
+    );
+    const Settings = (p) => <I {...p} d={<>{[<circle key="a" cx="12" cy="12" r="3"/>,<path key="b" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>]}</>} />;
+    const Plus = (p) => <I {...p} d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} />;
+    const X = (p) => <I {...p} d={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />;
+    const Trash2 = (p) => <I {...p} d={<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></>} />;
+    const Edit3 = (p) => <I {...p} d={<><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></>} />;
+    const Calendar = (p) => <I {...p} d={<><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>} />;
+    const LayoutGrid = (p) => <I {...p} d={<><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></>} />;
+    const ArrowLeft = (p) => <I {...p} d={<><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></>} />;
+    const Check = (p) => <I {...p} d="M20 6L9 17l-5-5" />;
+    const ChevronRight = (p) => <I {...p} d="M9 18l6-6-6-6" />;
+    const ChevronLeft = (p) => <I {...p} d="M15 18l-6-6 6-6" />;
+    const Loader2 = (p) => <I {...p} d="M21 12a9 9 0 1 1-6.219-8.56" />;
+    const Inbox = (p) => <I {...p} d={<><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>} />;
+    const Send = (p) => <I {...p} d={<><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>} />;
+    const CalendarPlus = (p) => <I {...p} d={<><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></>} />;
+    const CalendarCheck = (p) => <I {...p} d={<><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></>} />;
+    const Play = (p) => <I {...p} d={<polygon points="5 3 19 12 5 21 5 3"/>} />;
+    const Pause = (p) => <I {...p} d={<><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></>} />;
+    const RotateCcw = (p) => <I {...p} d={<><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></>} />;
+
+    /* ═══════════════════════════════════════════════════
+       Pomodoro Timer
+       ═══════════════════════════════════════════════════ */
+    const POMO_KEY = "tm_pomodoro";
+    const loadPomodoro = () => {
+      try {
+        const s = JSON.parse(localStorage.getItem(POMO_KEY) || "{}");
+        return { work: Number(s.work) > 0 ? Number(s.work) : 25, pause: Number(s.pause) > 0 ? Number(s.pause) : 5 };
+      } catch { return { work: 25, pause: 5 }; }
+    };
+    const savePomodoro = (s) => {
+      localStorage.setItem(POMO_KEY, JSON.stringify(s));
+      window.dispatchEvent(new Event("tm_pomodoro_update"));
+    };
+    const playBeep = () => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = 880;
+        o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.3, ctx.currentTime);
+        o.start();
+        // 2 kurze beeps
+        g.gain.setValueAtTime(0.3, ctx.currentTime + 0.0);
+        g.gain.setValueAtTime(0.0, ctx.currentTime + 0.18);
+        g.gain.setValueAtTime(0.3, ctx.currentTime + 0.30);
+        g.gain.setValueAtTime(0.0, ctx.currentTime + 0.48);
+        o.stop(ctx.currentTime + 0.5);
+      } catch (e) { /* noop */ }
+    };
+
+    const POMO_STATE_KEY = "tm_pomodoro_state";
+    const loadPomoState = () => {
+      try {
+        const s = JSON.parse(localStorage.getItem(POMO_STATE_KEY) || "null");
+        if (!s) return null;
+        return s;
+      } catch { return null; }
+    };
+    const savePomoState = (s) => {
+      if (!s) localStorage.removeItem(POMO_STATE_KEY);
+      else localStorage.setItem(POMO_STATE_KEY, JSON.stringify(s));
+    };
+
+    function PomodoroBar() {
+      const [settings, setSettings] = useState(loadPomodoro);
+      // State: { mode: 'work'|'pause', endAt: epoch ms, workBeeped, pauseBeeped }
+      // Idle: frozen remaining in workRem / pauseRem (seconds)
+      const [mode, setMode] = useState(() => {
+        const st = loadPomoState();
+        return st?.mode || "idle";
+      });
+      const [endAt, setEndAt] = useState(() => loadPomoState()?.endAt || 0);
+      const [workRem, setWorkRem] = useState(() => {
+        const st = loadPomoState();
+        if (st?.mode === "work") return null; // live-calculated
+        return st?.workRem ?? loadPomodoro().work * 60;
+      });
+      const [pauseRem, setPauseRem] = useState(() => {
+        const st = loadPomoState();
+        if (st?.mode === "pause") return null;
+        return st?.pauseRem ?? loadPomodoro().pause * 60;
+      });
+      const workBeepedRef = useRef(!!loadPomoState()?.workBeeped);
+      const pauseBeepedRef = useRef(!!loadPomoState()?.pauseBeeped);
+      const [, forceTick] = useState(0);
+
+      // Settings-Änderungen live übernehmen
+      useEffect(() => {
+        const h = () => setSettings(loadPomodoro());
+        window.addEventListener("tm_pomodoro_update", h);
+        return () => window.removeEventListener("tm_pomodoro_update", h);
+      }, []);
+
+      // Im Idle-Modus: Settings-Änderung setzt die Restzeiten neu
+      useEffect(() => {
+        if (mode === "idle") {
+          setWorkRem(settings.work * 60);
+          setPauseRem(settings.pause * 60);
+          savePomoState({ mode: "idle", workRem: settings.work * 60, pauseRem: settings.pause * 60 });
+        }
+      }, [settings.work, settings.pause, mode]);
+
+      // Ticker: läuft nur, wenn aktiv, und berechnet Restzeit aus Wall-Clock
+      useEffect(() => {
+        if (mode === "idle") return;
+        const tick = () => forceTick((n) => n + 1);
+        tick();
+        const iv = setInterval(tick, 500);
+        return () => clearInterval(iv);
+      }, [mode]);
+
+      // Beep-Check bei jedem Render während aktiv
+      const nowMs = Date.now();
+      let liveWorkSec = workRem;
+      let livePauseSec = pauseRem;
+      if (mode === "work") {
+        liveWorkSec = Math.round((endAt - nowMs) / 1000);
+        if (liveWorkSec <= 0 && !workBeepedRef.current) {
+          workBeepedRef.current = true;
+          playBeep();
+          savePomoState({ mode, endAt, workBeeped: true, pauseBeeped: pauseBeepedRef.current, pauseRem });
+        }
+      } else if (mode === "pause") {
+        livePauseSec = Math.max(0, Math.round((endAt - nowMs) / 1000));
+        if (livePauseSec <= 0 && !pauseBeepedRef.current) {
+          pauseBeepedRef.current = true;
+          playBeep();
+          savePomoState({ mode, endAt, workBeeped: workBeepedRef.current, pauseBeeped: true, workRem });
+        }
+      }
+
+      const fmt = (s) => {
+        if (s == null) return "--:--";
+        const sign = s < 0 ? "-" : "";
+        const abs = Math.abs(s);
+        return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+      };
+
+      const startWork = () => {
+        workBeepedRef.current = false;
+        const remaining = (workRem != null && workRem > 0) ? workRem : settings.work * 60;
+        const newEnd = Date.now() + remaining * 1000;
+        setEndAt(newEnd);
+        setMode("work");
+        savePomoState({ mode: "work", endAt: newEnd, workBeeped: false, pauseBeeped: pauseBeepedRef.current, pauseRem });
+      };
+      const startPause = () => {
+        pauseBeepedRef.current = false;
+        const remaining = (pauseRem != null && pauseRem > 0) ? pauseRem : settings.pause * 60;
+        const newEnd = Date.now() + remaining * 1000;
+        // Wenn work läuft: aktuellen Rest einfrieren
+        if (mode === "work") {
+          setWorkRem(Math.round((endAt - Date.now()) / 1000));
+        }
+        setEndAt(newEnd);
+        setMode("pause");
+        savePomoState({ mode: "pause", endAt: newEnd, workBeeped: workBeepedRef.current, pauseBeeped: false, workRem: mode === "work" ? Math.round((endAt - Date.now()) / 1000) : workRem });
+      };
+      const pauseTimer = () => {
+        if (mode === "work") setWorkRem(Math.round((endAt - Date.now()) / 1000));
+        if (mode === "pause") setPauseRem(Math.max(0, Math.round((endAt - Date.now()) / 1000)));
+        setMode("idle");
+        savePomoState({
+          mode: "idle",
+          workRem: mode === "work" ? Math.round((endAt - Date.now()) / 1000) : workRem,
+          pauseRem: mode === "pause" ? Math.max(0, Math.round((endAt - Date.now()) / 1000)) : pauseRem,
+        });
+      };
+      const reset = () => {
+        workBeepedRef.current = false;
+        pauseBeepedRef.current = false;
+        setMode("idle");
+        setWorkRem(settings.work * 60);
+        setPauseRem(settings.pause * 60);
+        savePomoState({ mode: "idle", workRem: settings.work * 60, pauseRem: settings.pause * 60 });
+      };
+
+      const workSec = liveWorkSec;
+      const pauseSec = livePauseSec;
+
+      const workActive = mode === "work";
+      const pauseActive = mode === "pause";
+      const workOver = workSec < 0;
+
+      return (
+        <div className="flex items-center gap-4 px-5 py-1.5 bg-gradient-to-r from-red-50 via-orange-50 to-green-50 border-b border-orange-200 shrink-0 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-red-600">🍅 Tomato</span>
+            <span className={`font-mono tabular-nums text-base font-bold w-20 text-center ${workActive ? (workOver ? "text-red-700 animate-pulse" : "text-red-600") : "text-gray-500"}`}>
+              {fmt(workSec)}
+            </span>
+            {!workActive ? (
+              <button onClick={startWork} title="Tomato starten"
+                className="p-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition"><Play size={12} /></button>
+            ) : (
+              <button onClick={pauseTimer} title="Anhalten"
+                className="p-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition"><Pause size={12} /></button>
+            )}
+          </div>
+          <span className="text-gray-300">|</span>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-green-700">☕ Pause</span>
+            <span className={`font-mono tabular-nums text-base font-bold w-20 text-center ${pauseActive ? "text-green-700" : "text-gray-500"}`}>
+              {fmt(pauseSec)}
+            </span>
+            {!pauseActive ? (
+              <button onClick={startPause} title="Pause starten"
+                className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 transition"><Play size={12} /></button>
+            ) : (
+              <button onClick={pauseTimer} title="Anhalten"
+                className="p-1.5 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition"><Pause size={12} /></button>
+            )}
+          </div>
+          <button onClick={reset} title="Zurücksetzen"
+            className="ml-auto p-1.5 rounded-lg hover:bg-gray-200 text-gray-400 transition"><RotateCcw size={12} /></button>
+          <span className="text-[10px] text-gray-400">{settings.work}/{settings.pause} min</span>
+        </div>
+      );
+    }
+
+    /* ═══════════════════════════════════════════════════
+       Gamification – Wochen-Medaillen & Motivation
+       ═══════════════════════════════════════════════════ */
+    function getWeekMedal(tasks, week, year, currentWeek, currentYear) {
+      // Nur vergangene und aktuelle Wochen bewerten
+      if (year > currentYear || (year === currentYear && week > currentWeek)) return null;
+      const wTasks = tasks.filter((t) => t.week === week && t.year === year);
+      if (wTasks.length === 0) return null;
+      const done = wTasks.filter((t) => t.done).length;
+      const pct = Math.round((done / wTasks.length) * 100);
+      if (pct === 100) return { emoji: "🥇", label: "Gold", color: "#fbbf24", pct };
+      if (pct >= 75) return { emoji: "🥈", label: "Silber", color: "#94a3b8", pct };
+      if (pct >= 50) return { emoji: "🥉", label: "Bronze", color: "#d97706", pct };
+      if (pct >= 25) return { emoji: "😐", label: "Naja", color: "#9ca3af", pct };
+      return { emoji: "🍇", label: "Himbeere", color: "#ec4899", pct };
+    }
+
+    function calcStreak(tasks, currentWeek, currentYear) {
+      let streak = 0;
+      let week = currentWeek;
+      let year = currentYear;
+      for (let i = 0; i < 52; i++) {
+        const wTasks = tasks.filter((t) => t.week === week && t.year === year);
+        if (wTasks.length === 0) { week--; if (week < 1) { year--; week = 52; } continue; }
+        const done = wTasks.filter((t) => t.done).length;
+        const pct = done / wTasks.length;
+        if (pct >= 0.75) { streak++; } else { break; }
+        week--;
+        if (week < 1) { year--; week = 52; }
+      }
+      return streak;
+    }
+
+    function calcLevel(tasks) {
+      const done = tasks.filter((t) => t.done).length;
+      if (done >= 200) return { level: 10, name: "Legende", emoji: "👑" };
+      if (done >= 150) return { level: 9, name: "Meister", emoji: "⭐" };
+      if (done >= 100) return { level: 8, name: "Experte", emoji: "🔥" };
+      if (done >= 75) return { level: 7, name: "Profi", emoji: "💎" };
+      if (done >= 50) return { level: 6, name: "Aufsteiger", emoji: "🚀" };
+      if (done >= 35) return { level: 5, name: "Macher", emoji: "💪" };
+      if (done >= 20) return { level: 4, name: "Dranbleiber", emoji: "🎯" };
+      if (done >= 10) return { level: 3, name: "Starter", emoji: "🌱" };
+      if (done >= 5) return { level: 2, name: "Anfänger", emoji: "🐣" };
+      return { level: 1, name: "Neuling", emoji: "👋" };
+    }
+
+    /* ═══════════════════════════════════════════════════
+       ICS Export – Termin um 05:30 (30 Min) im Kalender "TASKER"
+       ═══════════════════════════════════════════════════ */
+    function exportICS(task, categories) {
+      if (!task.week || !task.year) return null;
+      const cat = categories.find((c) => c.id === task.categoryId);
+      const monday = getMondayOfWeek(task.week, task.year);
+      const dayOffset = (task.day || 1) - 1;
+      const eventDate = new Date(monday);
+      eventDate.setDate(monday.getDate() + dayOffset);
+
+      const pad = (n) => String(n).padStart(2, "0");
+      const ymd = `${eventDate.getFullYear()}${pad(eventDate.getMonth() + 1)}${pad(eventDate.getDate())}`;
+      const uid = `tasker-${task.id}@taskmanager`;
+      const now = new Date();
+      const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}T${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
+      const ics = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//TaskManager//DE",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:TASKER",
+        "BEGIN:VEVENT",
+        `UID:${uid}`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART:${ymd}T053000`,
+        `DTEND:${ymd}T060000`,
+        `SUMMARY:${task.title}`,
+        `DESCRIPTION:Kategorie: ${cat?.name || "–"} | KW${task.week}${task.day ? " " + DAY_NAMES[task.day - 1] : ""}`,
+        "CLASS:PRIVATE",
+        "STATUS:CONFIRMED",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n");
+
+      const blob = new Blob([ics], { type: "text/calendar" });
+      const url = URL.createObjectURL(blob);
+      const fname = `${task.title.replace(/[^a-zA-Z0-9äöüÄÖÜß ]/g, "").substring(0, 30).trim()}.ics`;
+
+      // Methode 1: versteckter iframe — triggert den OS-Dateihandler (Outlook) ohne Navigation
+      try {
+        const iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(url); }, 10000);
+      } catch (e) {
+        // Fallback: normaler Download
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fname;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
+      return true;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       Supabase REST Client (kein SDK nötig)
+       ═══════════════════════════════════════════════════ */
+    const SB = {
+      url: "https://reiiptqextmddmkacnlr.supabase.co",
+      key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlaWlwdHFleHRtZGRta2FjbmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NDgzMTksImV4cCI6MjA5MTUyNDMxOX0.dlxOgAgMAwegMZVVkXliyMKuvTc8GDk5UIccwx62YDw",
+      _h() { return { apikey: this.key, Authorization: `Bearer ${this.key}`, "Content-Type": "application/json", Prefer: "return=representation" }; },
+      async select(table, query = "") {
+        const r = await fetch(`${this.url}/rest/v1/${table}?${query}`, { headers: this._h() });
+        return r.ok ? r.json() : [];
+      },
+      async insert(table, row) {
+        const r = await fetch(`${this.url}/rest/v1/${table}`, { method: "POST", headers: this._h(), body: JSON.stringify(row) });
+        return r.ok ? (await r.json())[0] : null;
+      },
+      async update(table, id, patch) {
+        const r = await fetch(`${this.url}/rest/v1/${table}?id=eq.${id}`, { method: "PATCH", headers: this._h(), body: JSON.stringify(patch) });
+        return r.ok;
+      },
+      async upsert(table, row, onConflict) {
+        const h = { ...this._h(), Prefer: "return=representation,resolution=merge-duplicates" };
+        const r = await fetch(`${this.url}/rest/v1/${table}?on_conflict=${onConflict}`, { method: "POST", headers: h, body: JSON.stringify(row) });
+        return r.ok ? (await r.json())[0] : null;
+      },
+      async delete(table, id) {
+        const r = await fetch(`${this.url}/rest/v1/${table}?id=eq.${id}`, { method: "DELETE", headers: this._h() });
+        return r.ok;
+      },
+      async deleteWhere(table, query) {
+        const r = await fetch(`${this.url}/rest/v1/${table}?${query}`, { method: "DELETE", headers: this._h() });
+        return r.ok;
+      },
+    };
+
+    /* ═══════════════════════════════════════════════════
+       Helpers
+       ═══════════════════════════════════════════════════ */
+    let _id = Date.now();
+    const uid = () => String(++_id);
+
+    function isoWeek(date) {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const day = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - day);
+      const y1 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      return Math.ceil(((d - y1) / 864e5 + 1) / 7);
+    }
+
+    function buildTimeline(monthCount = 6) {
+      const now = new Date();
+      const months = [];
+      const usedWeeks = new Set();
+      for (let m = 0; m < monthCount; m++) {
+        const yr = now.getFullYear() + Math.floor((now.getMonth() + m) / 12);
+        const mo = (now.getMonth() + m) % 12;
+        const label = new Date(yr, mo, 1).toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+        const dim = new Date(yr, mo + 1, 0).getDate();
+        const weeks = [];
+        for (let d = 1; d <= dim; d++) {
+          const date = new Date(yr, mo, d);
+          const thu = new Date(date);
+          const dow = thu.getDay() || 7;
+          thu.setDate(thu.getDate() + (4 - dow));
+          if (thu.getMonth() !== mo || thu.getFullYear() !== yr) continue;
+          const w = isoWeek(date);
+          const wy = thu.getFullYear();
+          const key = `${wy}-${w}`;
+          if (!usedWeeks.has(key)) { usedWeeks.add(key); weeks.push({ week: w, year: wy }); }
+        }
+        weeks.sort((a, b) => a.week - b.week);
+        months.push({ label, month: mo, year: yr, weeks });
+      }
+      return months;
+    }
+
+    function currentISOWeek() {
+      const now = new Date();
+      return { week: isoWeek(now), year: now.getFullYear() };
+    }
+
+    function getMondayOfWeek(week, year) {
+      const jan4 = new Date(year, 0, 4);
+      const dow = jan4.getDay() || 7;
+      const mon1 = new Date(jan4);
+      mon1.setDate(jan4.getDate() - dow + 1);
+      const result = new Date(mon1);
+      result.setDate(mon1.getDate() + (week - 1) * 7);
+      return result;
+    }
+
+    const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+    function getWeekDays(week, year) {
+      const monday = getMondayOfWeek(week, year);
+      return DAY_NAMES.map((name, i) => {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        return { dayIndex: i + 1, name, dateStr: `${d.getDate()}.${d.getMonth() + 1}.` };
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════
+       Default Data
+       ═══════════════════════════════════════════════════ */
+    const INIT_CATS = [
+      { id: "c1", name: "Privat" },
+      { id: "c2", name: "Haus" },
+      { id: "c3", name: "ALEAS" },
+    ];
+
+    const INIT_PRIOS = [
+      { id: "p1", name: "Hoch", level: 1, color: "#ef4444" },
+      { id: "p2", name: "Mittel", level: 2, color: "#f59e0b" },
+      { id: "p3", name: "Niedrig", level: 3, color: "#22c55e" },
+    ];
+
+    const MARKER_COLORS = [
+      { value: "#bbf7d0" }, { value: "#bfdbfe" }, { value: "#fef08a" },
+      { value: "#fecdd3" }, { value: "#e9d5ff" }, { value: "#fed7aa" },
+    ];
+
+    /* ═══════════════════════════════════════════════════
+       WeekMarkerPopup
+       ═══════════════════════════════════════════════════ */
+    function WeekMarkerPopup({ marker, onSave, onRemove, onClose }) {
+      const [text, setText] = useState(marker?.text || "");
+      const [color, setColor] = useState(marker?.color || MARKER_COLORS[0].value);
+      const [fromDay, setFromDay] = useState(marker?.fromDay ?? 1);
+      const [toDay, setToDay] = useState(marker?.toDay ?? 7);
+      const doSave = () => text.trim() && onSave({ id: marker?.id || null, text: text.trim(), color, fromDay, toDay });
+      return (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+          <div className="bg-white rounded-2xl shadow-2xl p-5 w-full max-w-xs mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold mb-3">Woche markieren</h3>
+            <input autoFocus value={text} onChange={(e) => setText(e.target.value)}
+              placeholder="z.B. Urlaub Sardinien"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 mb-3 text-sm focus:ring-2 focus:ring-green-400 focus:border-transparent outline-none"
+              onKeyDown={(e) => e.key === "Enter" && doSave()} />
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase tracking-widest">Von</label>
+                <select value={fromDay} onChange={(e) => { const v = +e.target.value; setFromDay(v); if (v > toDay) setToDay(v); }}
+                  className="w-full border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white">
+                  {DAY_NAMES.map((d, i) => <option key={i} value={i + 1}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase tracking-widest">Bis</label>
+                <select value={toDay} onChange={(e) => { const v = +e.target.value; setToDay(v); if (v < fromDay) setFromDay(v); }}
+                  className="w-full border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white">
+                  {DAY_NAMES.map((d, i) => <option key={i} value={i + 1}>{d}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-1 mb-4">
+              {DAY_NAMES.map((d, i) => {
+                const active = (i + 1) >= fromDay && (i + 1) <= toDay;
+                return (
+                  <div key={i} className={`flex-1 text-center text-[9px] font-bold py-1 rounded-md transition-colors
+                    ${active ? "text-gray-700" : "text-gray-300 bg-transparent"}`}
+                    style={active ? { backgroundColor: color } : undefined}>
+                    {d}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 mb-4">
+              {MARKER_COLORS.map((mc) => (
+                <button key={mc.value} onClick={() => setColor(mc.value)}
+                  className={`w-7 h-7 rounded-full transition-all ${color === mc.value ? "ring-2 ring-offset-2 ring-gray-400 scale-110" : "hover:scale-105"}`}
+                  style={{ backgroundColor: mc.value }} />
+              ))}
+            </div>
+            <div className="flex justify-between">
+              {marker?.text ? (
+                <button onClick={onRemove} className="px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 rounded-lg transition">Entfernen</button>
+              ) : <div />}
+              <div className="flex gap-2">
+                <button onClick={onClose} className="px-3 py-1.5 text-sm text-gray-500 rounded-xl hover:bg-gray-100 transition">Abbrechen</button>
+                <button onClick={doSave} disabled={!text.trim()}
+                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-30 transition font-medium">
+                  Speichern
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ═══════════════════════════════════════════════════
+       TaskCard
+       ═══════════════════════════════════════════════════ */
+    function TaskCard({ task, priorities, categories, onDragStart, onEdit, onDelete, onToggleDone, small, onUnschedule, onExportICS, onSetTomatoes }) {
+      const prio = priorities.find((p) => p.id === task.priorityId);
+      const bg = prio?.color || "#9ca3af";
+      const hasSchedule = task.week != null && task.year != null;
+      const cycleTomato = (e) => {
+        e.stopPropagation();
+        if (onSetTomatoes) onSetTomatoes(task.id, ((task.tomatoes || 0) % 5) + 1);
+      };
+      const clearTomato = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (onSetTomatoes) onSetTomatoes(task.id, 0);
+      };
+      return (
+        <div draggable
+          onDragStart={(e) => { e.dataTransfer.setData("text/plain", task.id); e.dataTransfer.effectAllowed = "move"; onDragStart?.(task.id); }}
+          className={`group rounded-lg shadow cursor-grab active:cursor-grabbing select-none transition-all hover:shadow-md hover:-translate-y-0.5
+            ${small ? "px-1.5 py-0.5" : "px-2.5 py-1.5"} ${task.done ? "opacity-50" : ""}`}
+          style={{ backgroundColor: task.done ? "#f3f4f6" : bg + "18", borderLeft: `3px solid ${task.done ? "#d1d5db" : bg}` }}>
+          <div className="flex items-center gap-1.5">
+            <button onClick={(e) => { e.stopPropagation(); onToggleDone(task.id); }}
+              className={`shrink-0 flex items-center justify-center rounded-full border-2 transition-colors
+                ${small ? "w-3.5 h-3.5" : "w-5 h-5"}
+                ${task.done ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-gray-400 text-transparent hover:text-gray-300"}`}>
+              <Check size={small ? 7 : 10} strokeWidth={3} />
+            </button>
+            <span className={`flex-1 font-medium truncate ${small ? "text-[10px]" : "text-sm"} ${task.done ? "line-through text-gray-400" : ""}`}>
+              {task.title}
+            </span>
+            {task.moves > 0 && (
+              <span className={`shrink-0 font-bold rounded px-1 ${small ? "text-[8px]" : "text-[10px]"} ${task.moves >= 5 ? "text-red-600 bg-red-50" : task.moves >= 3 ? "text-orange-600 bg-orange-50" : "text-yellow-600 bg-yellow-50"}`}
+                title={`${task.moves}× verschoben`}>
+                ↻{task.moves}
+              </span>
+            )}
+            {(task.tomatoes > 0 || !small) && (
+              <button onClick={cycleTomato} onContextMenu={clearTomato}
+                className={`shrink-0 cursor-pointer select-none rounded px-0.5 hover:bg-red-50 transition ${small ? "text-[9px]" : "text-[11px]"}`}
+                title={task.tomatoes > 0 ? `${task.tomatoes} 🍅 — Klick: +1, Rechtsklick: Reset` : "🍅 zuweisen"}>
+                {task.tomatoes > 0
+                  ? <span className="text-red-500 font-bold">{task.tomatoes}🍅</span>
+                  : <span className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">🍅</span>}
+              </button>
+            )}
+            {task.week != null && !small && (
+              <span className="text-[10px] font-mono bg-white/70 rounded px-1 py-0.5 text-gray-500">
+                KW{task.week}{task.day ? ` ${DAY_NAMES[task.day - 1]}` : ""}
+              </span>
+            )}
+            {task.icsExported && (
+              <span className="shrink-0" title="In Outlook exportiert">
+                <CalendarCheck size={small ? 9 : 13} className="text-purple-500" />
+              </span>
+            )}
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              {hasSchedule && onExportICS && (
+                <button onClick={(e) => { e.stopPropagation(); onExportICS(task); }}
+                  className="text-gray-400 hover:text-purple-500 p-0.5" title="Als .ics exportieren (Outlook)">
+                  <CalendarPlus size={small ? 9 : 12} />
+                </button>
+              )}
+              {small && onUnschedule && (
+                <button onClick={(e) => { e.stopPropagation(); onUnschedule(task.id); }}
+                  className="text-gray-400 hover:text-orange-500 p-0.5" title="Aus Zeitstrahl entfernen">
+                  <X size={small ? 9 : 10} />
+                </button>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} className="text-gray-400 hover:text-blue-500 p-0.5">
+                <Edit3 size={small ? 9 : 12} />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} className="text-gray-400 hover:text-red-500 p-0.5">
+                <Trash2 size={small ? 9 : 12} />
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ═══════════════════════════════════════════════════
+       DropCell
+       ═══════════════════════════════════════════════════ */
+    function DropCell({ cellId, onDrop, onAdd, children, className = "", style }) {
+      const [over, setOver] = useState(false);
+      return (
+        <div
+          className={`min-h-[28px] p-0.5 transition-colors rounded-sm
+            ${over ? "bg-blue-100/80 ring-2 ring-blue-300 ring-inset" : ""} ${className}`}
+          style={style}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(true); }}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(false); }}
+          onDrop={(e) => { e.preventDefault(); setOver(false); const tid = e.dataTransfer.getData("text/plain"); if (tid) onDrop(tid, cellId); }}>
+          {children}
+          {onAdd && (
+            <button onClick={onAdd}
+              className="w-full flex items-center justify-center py-0.5 text-gray-200 hover:text-blue-400 transition-colors rounded">
+              <Plus size={13} />
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    /* ═══════════════════════════════════════════════════
+       TaskModal
+       ═══════════════════════════════════════════════════ */
+    function TaskModal({ modal, categories, priorities, onSave, onClose, pomoWork }) {
+      const [title, setTitle] = useState(modal.task?.title || "");
+      const [catId, setCatId] = useState(modal.task?.categoryId || categories[0]?.id);
+      const [prioId, setPrioId] = useState(modal.task?.priorityId || priorities[0]?.id);
+      const [tomatoes, setTomatoes] = useState(modal.task?.tomatoes || 1);
+      const save = () => { if (!title.trim()) return; onSave({ ...modal.task, title: title.trim(), categoryId: catId, priorityId: prioId, tomatoes }); };
+      return (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-4">{modal.mode === "add" ? "Neuer Task" : "Task bearbeiten"}</h3>
+            <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)}
+              placeholder="Was muss erledigt werden?"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 mb-4 focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none text-sm"
+              onKeyDown={(e) => e.key === "Enter" && save()} />
+            <div className="mb-3">
+              <label className="text-[10px] font-bold text-gray-400 mb-1.5 block uppercase tracking-widest">Kategorie</label>
+              <select value={catId} onChange={(e) => setCatId(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className="text-[10px] font-bold text-gray-400 mb-1.5 block uppercase tracking-widest">Priorität</label>
+              <div className="flex items-center gap-2">
+                {priorities.map((p) => (
+                  <button key={p.id} type="button" onClick={() => setPrioId(p.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition border-2 ${prioId === p.id ? "border-gray-700 shadow-sm" : "border-transparent hover:border-gray-300"}`}
+                    style={{ backgroundColor: prioId === p.id ? p.color + "30" : "transparent" }}
+                    title={p.name}>
+                    <span className="w-4 h-4 rounded-full shrink-0 border-2" style={{ backgroundColor: p.color, borderColor: prioId === p.id ? "#374151" : p.color }} />
+                    <span style={{ color: prioId === p.id ? "#374151" : "#9ca3af" }}>{p.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mb-5">
+              <label className="text-[10px] font-bold text-gray-400 mb-1.5 block uppercase tracking-widest">🍅 {tomatoes} Tomato{tomatoes !== 1 ? "s" : ""} = {tomatoes * pomoWork} min</label>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">1</span>
+                <input type="range" min="1" max="5" step="1" value={tomatoes}
+                  onChange={(e) => setTomatoes(Number(e.target.value))}
+                  className="flex-1 h-2 accent-red-500 cursor-pointer" />
+                <span className="text-xs text-gray-400">5</span>
+                <span className="text-sm ml-1">{"🍅".repeat(tomatoes)}</span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 rounded-xl hover:bg-gray-100 transition">Abbrechen</button>
+              <button onClick={save} disabled={!title.trim()}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-30 transition font-medium">
+                {modal.mode === "add" ? "Erstellen" : "Speichern"}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ═══════════════════════════════════════════════════
+       Mobile Hook
+       ═══════════════════════════════════════════════════ */
+    function useIsMobile(breakpoint = 768) {
+      const [mobile, setMobile] = useState(window.innerWidth < breakpoint);
+      useEffect(() => {
+        const cb = () => setMobile(window.innerWidth < breakpoint);
+        window.addEventListener("resize", cb);
+        return () => window.removeEventListener("resize", cb);
+      }, [breakpoint]);
+      return mobile;
+    }
+
+    /* ═══════════════════════════════════════════════════
+       MobileInbox
+       ═══════════════════════════════════════════════════ */
+    function MobileInbox({ tasks, categories, priorities, onAdd, onToggleDone, onDelete, showDone, setShowDone }) {
+      const [text, setText] = useState("");
+      const [catId, setCatId] = useState(categories[0]?.id);
+      const [prioId, setPrioId] = useState(priorities[0]?.id);
+      const [cursorDate, setCursorDate] = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; });
+      const inputRef = useRef(null);
+      const sortedPrios = useMemo(() => [...priorities].sort((a, b) => a.level - b.level), [priorities]);
+      const inboxTasks = useMemo(() => {
+        const t = tasks.filter((t) => !t.week && !t.year);
+        return showDone ? t : t.filter((t) => !t.done);
+      }, [tasks, showDone]);
+      const scheduledCount = useMemo(() => tasks.filter((t) => t.week && t.year).length, [tasks]);
+      const doneCount = useMemo(() => tasks.filter((t) => t.done).length, [tasks]);
+
+      const cursorWeek = isoWeek(cursorDate);
+      const cursorYear = cursorDate.getFullYear();
+      const cursorDay = cursorDate.getDay() || 7; // 1=Mo..7=So
+      const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+      const isToday = cursorDate.getTime() === today.getTime();
+      const dayLabel = `${DAY_NAMES[cursorDay - 1]}, ${cursorDate.getDate()}.${cursorDate.getMonth() + 1}.`;
+
+      const dayTasks = useMemo(() => {
+        const t = tasks.filter((t) => t.week === cursorWeek && t.year === cursorYear && t.day === cursorDay);
+        const filtered = showDone ? t : t.filter((t) => !t.done);
+        return filtered.sort((a, b) => {
+          if (a.done !== b.done) return a.done ? 1 : -1;
+          const aPrio = priorities.find((p) => p.id === a.priorityId)?.level ?? 999;
+          const bPrio = priorities.find((p) => p.id === b.priorityId)?.level ?? 999;
+          return aPrio - bPrio;
+        });
+      }, [tasks, cursorWeek, cursorYear, cursorDay, showDone, priorities]);
+      const dayDoneCount = useMemo(() => tasks.filter((t) => t.week === cursorWeek && t.year === cursorYear && t.day === cursorDay && t.done).length, [tasks, cursorWeek, cursorYear, cursorDay]);
+      const dayTotalCount = useMemo(() => tasks.filter((t) => t.week === cursorWeek && t.year === cursorYear && t.day === cursorDay).length, [tasks, cursorWeek, cursorYear, cursorDay]);
+
+      const shiftDay = (n) => {
+        const d = new Date(cursorDate);
+        d.setDate(d.getDate() + n);
+        d.setHours(0,0,0,0);
+        setCursorDate(d);
+      };
+      const goToday = () => { const d = new Date(); d.setHours(0,0,0,0); setCursorDate(d); };
+
+      const submit = () => {
+        if (!text.trim()) return;
+        onAdd({ title: text.trim(), categoryId: catId, priorityId: prioId, week: null, year: null, day: null });
+        setText("");
+        inputRef.current?.focus();
+      };
+
+      return (
+        <div className="h-screen flex flex-col bg-gray-50">
+          <header className="bg-white border-b px-4 py-3 shrink-0">
+            <div className="flex items-center justify-between">
+              <h1 className="text-lg font-bold flex items-center gap-2 text-gray-700">
+                <Inbox size={20} className="text-blue-600" /> Inbox
+              </h1>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowDone((s) => !s)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition ${showDone ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                  <Check size={12} /> {doneCount}/{tasks.length}
+                </button>
+              </div>
+            </div>
+            {scheduledCount > 0 && (
+              <p className="text-xs text-gray-400 mt-1">{scheduledCount} Tasks im Zeitplan – am Desktop organisieren</p>
+            )}
+          </header>
+          <div className="bg-white border-b px-4 py-3 shrink-0 space-y-2">
+            <div className="flex gap-2">
+              <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
+                placeholder="Neuer Task..."
+                className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none"
+                onKeyDown={(e) => e.key === "Enter" && submit()} />
+              <button onClick={submit} disabled={!text.trim()}
+                className="px-3 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-30 transition">
+                <Send size={18} />
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <select value={catId} onChange={(e) => setCatId(e.target.value)}
+                className="flex-1 border border-gray-200 rounded-xl px-2 py-1.5 text-xs bg-white">
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select value={prioId} onChange={(e) => setPrioId(e.target.value)}
+                className="flex-1 border border-gray-200 rounded-xl px-2 py-1.5 text-xs bg-white">
+                {sortedPrios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+          </div>
+          {/* Tagesansicht mit Navigation */}
+          <div className="bg-white border-b px-4 py-2.5 shrink-0">
+            <div className="flex items-center gap-2 mb-2">
+              <button onClick={() => shiftDay(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition">
+                <ChevronLeft size={18} />
+              </button>
+              <button onClick={goToday} disabled={isToday}
+                className={`flex-1 text-center py-1 rounded-lg text-sm font-bold transition ${isToday ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100"}`}>
+                {isToday ? "Heute" : "Heute"} · {dayLabel}
+                {dayTotalCount > 0 && <span className="ml-2 text-xs font-medium text-gray-400">{dayDoneCount}/{dayTotalCount}</span>}
+              </button>
+              <button onClick={() => shiftDay(1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition">
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            {dayTasks.length === 0 ? (
+              <p className="text-xs text-gray-300 italic text-center py-3">Keine Tasks an diesem Tag</p>
+            ) : (
+              <div className="space-y-1.5">
+                {dayTasks.map((t) => {
+                  const prio = priorities.find((p) => p.id === t.priorityId);
+                  const cat = categories.find((c) => c.id === t.categoryId);
+                  return (
+                    <div key={t.id}
+                      className={`flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 border-l-4 transition ${t.done ? "opacity-50" : ""}`}
+                      style={{ borderLeftColor: prio?.color || "#9ca3af" }}>
+                      <button onClick={() => onToggleDone(t.id)}
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${t.done ? "bg-green-500 border-green-500 text-white" : "border-gray-300"}`}>
+                        {t.done && <Check size={12} />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <span className={`text-sm font-medium block truncate ${t.done ? "line-through text-gray-400" : ""}`}>{t.title}</span>
+                        {cat && <span className="text-[10px] text-gray-400">{cat.name}</span>}
+                      </div>
+                      <button onClick={() => onDelete(t.id)} className="text-gray-300 hover:text-red-500 transition shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="flex-1 overflow-auto px-4 py-3">
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-1.5">
+              <Inbox size={11} /> Inbox (ungeplant)
+            </h2>
+            {inboxTasks.length === 0 ? (
+              <div className="text-center text-gray-300 py-12">
+                <Inbox size={40} className="mx-auto mb-3 opacity-50" />
+                <p className="text-sm">Inbox leer</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {inboxTasks.map((t) => {
+                  const prio = priorities.find((p) => p.id === t.priorityId);
+                  const cat = categories.find((c) => c.id === t.categoryId);
+                  return (
+                    <div key={t.id}
+                      className={`flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm border-l-4 transition ${t.done ? "opacity-50" : ""}`}
+                      style={{ borderLeftColor: prio?.color || "#9ca3af" }}>
+                      <button onClick={() => onToggleDone(t.id)}
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${t.done ? "bg-green-500 border-green-500 text-white" : "border-gray-300"}`}>
+                        {t.done && <Check size={12} />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <span className={`text-sm font-medium block truncate ${t.done ? "line-through text-gray-400" : ""}`}>{t.title}</span>
+                        {cat && <span className="text-[10px] text-gray-400">{cat.name}</span>}
+                      </div>
+                      <button onClick={() => onDelete(t.id)} className="text-gray-300 hover:text-red-500 transition shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* ═══════════════════════════════════════════════════
+       SettingsView
+       ═══════════════════════════════════════════════════ */
+    function SettingsView({ categories, setCategories, priorities, setPriorities, onBack }) {
+      const [newCat, setNewCat] = useState("");
+      const [newPrio, setNewPrio] = useState("");
+      const [newPrioColor, setNewPrioColor] = useState("#6366f1");
+      const [pomo, setPomo] = useState(loadPomodoro);
+      const updatePomo = (patch) => {
+        const next = { ...pomo, ...patch };
+        setPomo(next);
+        savePomodoro(next);
+      };
+      const addCat = () => {
+        if (!newCat.trim()) return;
+        const cat = { id: uid(), name: newCat.trim() };
+        const sortOrder = categories.length + 1;
+        setCategories((cs) => [...cs, cat]);
+        setNewCat("");
+        SB.insert("tm_categories", { id: cat.id, name: cat.name, sort_order: sortOrder });
+      };
+      const renameCat = (id, newName) => {
+        if (!newName.trim()) return;
+        setCategories((cs) => cs.map((c) => c.id === id ? { ...c, name: newName.trim() } : c));
+        SB.update("tm_categories", id, { name: newName.trim() });
+      };
+      const deleteCat = (id) => {
+        setCategories((cs) => cs.filter((x) => x.id !== id));
+        SB.delete("tm_categories", id);
+      };
+      const addPrio = () => {
+        if (!newPrio.trim()) return;
+        const mx = priorities.reduce((m, p) => Math.max(m, p.level), 0);
+        const prio = { id: uid(), name: newPrio.trim(), level: mx + 1, color: newPrioColor };
+        setPriorities((ps) => [...ps, prio]);
+        setNewPrio("");
+        SB.insert("tm_priorities", { id: prio.id, name: prio.name, level: prio.level, color: prio.color });
+      };
+      const renamePrio = (id, newName) => {
+        if (!newName.trim()) return;
+        setPriorities((ps) => ps.map((p) => p.id === id ? { ...p, name: newName.trim() } : p));
+        SB.update("tm_priorities", id, { name: newName.trim() });
+      };
+      const recolorPrio = (id, newColor) => {
+        setPriorities((ps) => ps.map((p) => p.id === id ? { ...p, color: newColor } : p));
+        SB.update("tm_priorities", id, { color: newColor });
+      };
+      const deletePrio = (id) => {
+        setPriorities((ps) => ps.filter((x) => x.id !== id));
+        SB.delete("tm_priorities", id);
+      };
+      return (
+        <div className="h-screen bg-gray-50 flex flex-col">
+          <header className="flex items-center gap-3 px-6 py-3 bg-white border-b shadow-sm shrink-0">
+            <button onClick={onBack} className="p-2 rounded-xl hover:bg-gray-100 transition"><ArrowLeft size={20} /></button>
+            <h1 className="text-lg font-bold">Einstellungen</h1>
+          </header>
+          <div className="flex-1 overflow-auto">
+            <div className="max-w-lg mx-auto p-6 space-y-8">
+              <section>
+                <h2 className="text-base font-bold mb-1">🍅 Pomodoro-Timer</h2>
+                <p className="text-xs text-gray-400 mb-3">Tomato-Zeit und Pause-Zeit in Minuten.</p>
+                <div className="flex gap-3">
+                  <label className="flex-1 bg-white rounded-xl px-4 py-3 shadow-sm">
+                    <span className="block text-xs text-gray-500 mb-1">🍅 Tomato (Minuten)</span>
+                    <input type="number" min="1" max="180" value={pomo.work}
+                      onChange={(e) => updatePomo({ work: Math.max(1, Math.min(180, Number(e.target.value) || 1)) })}
+                      className="w-full font-bold text-lg bg-transparent border border-transparent rounded-lg px-2 py-1 hover:border-gray-200 focus:border-red-400 focus:bg-white focus:outline-none transition" />
+                  </label>
+                  <label className="flex-1 bg-white rounded-xl px-4 py-3 shadow-sm">
+                    <span className="block text-xs text-gray-500 mb-1">☕ Pause (Minuten)</span>
+                    <input type="number" min="1" max="60" value={pomo.pause}
+                      onChange={(e) => updatePomo({ pause: Math.max(1, Math.min(60, Number(e.target.value) || 1)) })}
+                      className="w-full font-bold text-lg bg-transparent border border-transparent rounded-lg px-2 py-1 hover:border-gray-200 focus:border-green-400 focus:bg-white focus:outline-none transition" />
+                  </label>
+                </div>
+              </section>
+              <section>
+                <h2 className="text-base font-bold mb-3">Kategorien</h2>
+                <p className="text-xs text-gray-400 mb-3">Spalten im Board und Zeitstrahl.</p>
+                <div className="space-y-2 mb-3">
+                  {categories.map((c) => (
+                    <div key={c.id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm">
+                      <input defaultValue={c.name}
+                        onBlur={(e) => renameCat(c.id, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
+                        className="flex-1 font-medium text-sm bg-transparent border border-transparent rounded-lg px-2 py-1 hover:border-gray-200 focus:border-blue-400 focus:bg-white focus:outline-none transition" />
+                      <button onClick={() => deleteCat(c.id)} className="text-gray-300 hover:text-red-500 transition"><Trash2 size={15} /></button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="Neue Kategorie..."
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" onKeyDown={(e) => e.key === "Enter" && addCat()} />
+                  <button onClick={addCat} className="px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition"><Plus size={16} /></button>
+                </div>
+              </section>
+              <section>
+                <h2 className="text-base font-bold mb-1">Prioritäten</h2>
+                <p className="text-xs text-gray-400 mb-3">Zeilen im Board und Farbe der Post-its.</p>
+                <div className="space-y-2 mb-3">
+                  {[...priorities].sort((a, b) => a.level - b.level).map((p) => (
+                    <div key={p.id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm">
+                      <input type="color" value={p.color} onChange={(e) => recolorPrio(p.id, e.target.value)}
+                        className="w-5 h-5 rounded-full shrink-0 cursor-pointer border-0 p-0" style={{ backgroundColor: p.color }} />
+                      <input defaultValue={p.name}
+                        onBlur={(e) => renamePrio(p.id, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur(); } }}
+                        className="flex-1 font-medium text-sm bg-transparent border border-transparent rounded-lg px-2 py-1 hover:border-gray-200 focus:border-blue-400 focus:bg-white focus:outline-none transition" />
+                      <span className="text-xs text-gray-400">Stufe {p.level}</span>
+                      <button onClick={() => deletePrio(p.id)} className="text-gray-300 hover:text-red-500 transition"><Trash2 size={15} /></button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input value={newPrio} onChange={(e) => setNewPrio(e.target.value)} placeholder="Neue Priorität..."
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" onKeyDown={(e) => e.key === "Enter" && addPrio()} />
+                  <input type="color" value={newPrioColor} onChange={(e) => setNewPrioColor(e.target.value)} className="w-10 h-[38px] rounded-lg cursor-pointer border border-gray-200" />
+                  <button onClick={addPrio} className="px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition"><Plus size={16} /></button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ═══════════════════════════════════════════════════
+       MAIN
+       ═══════════════════════════════════════════════════ */
+    function TaskManager() {
+      const [categories, setCategories] = useState([]);
+      const [priorities, setPriorities] = useState([]);
+      const [tasks, setTasks] = useState([]);
+      const [view, setView] = useState("main");
+      const [modal, setModal] = useState(null);
+      const [showDone, setShowDone] = useState(true);
+      const [weekMarkers, setWeekMarkers] = useState({});
+      const [editingMarker, setEditingMarker] = useState(null);
+      const [expandedWeeks, setExpandedWeeks] = useState(new Set());
+      const [loading, setLoading] = useState(true);
+      const [boardShowAll, setBoardShowAll] = useState(false);
+      const [boardOpen, setBoardOpen] = useState(true);
+      const [timelineOpen, setTimelineOpen] = useState(true);
+      const [monthGoals, setMonthGoals] = useState({});
+      const loaded = useRef(false);
+      const isMobile = useIsMobile();
+
+      const timeline = useMemo(() => buildTimeline(12), []);
+      const sortedPrios = useMemo(() => [...priorities].sort((a, b) => a.level - b.level), [priorities]);
+      const now = useMemo(() => currentISOWeek(), []);
+      const doneCount = useMemo(() => tasks.filter((t) => t.done).length, [tasks]);
+      const visibleTasks = useMemo(() => (showDone ? tasks : tasks.filter((t) => !t.done)), [tasks, showDone]);
+
+      const stats = useMemo(() => {
+        const total = tasks.length;
+        const done = tasks.filter((t) => t.done).length;
+        const open = total - done;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        const thisWeekTasks = tasks.filter((t) => t.week === now.week && t.year === now.year);
+        const thisWeekDone = thisWeekTasks.filter((t) => t.done).length;
+        const thisWeekOpen = thisWeekTasks.length - thisWeekDone;
+        const thisWeekPct = thisWeekTasks.length > 0 ? Math.round((thisWeekDone / thisWeekTasks.length) * 100) : 0;
+        const overdue = tasks.filter((t) => !t.done && t.week && t.year && (t.year < now.year || (t.year === now.year && t.week < now.week))).length;
+        const unplanned = tasks.filter((t) => !t.week && !t.year && !t.done).length;
+        const streak = calcStreak(tasks, now.week, now.year);
+        const level = calcLevel(tasks);
+        const thisWeekMedal = getWeekMedal(tasks, now.week, now.year, now.week, now.year);
+
+        // Medaillen-Statistik über alle vergangenen Wochen
+        const allWeeks = [...new Set(tasks.filter((t) => t.week && t.year).map((t) => `${t.year}-${t.week}`))];
+        let goldCount = 0, silverCount = 0, bronzeCount = 0, berryCount = 0;
+        allWeeks.forEach((wk) => {
+          const [y, w] = wk.split("-").map(Number);
+          if (y > now.year || (y === now.year && w > now.week)) return;
+          const m = getWeekMedal(tasks, w, y, now.week, now.year);
+          if (m) { if (m.pct === 100) goldCount++; else if (m.pct >= 75) silverCount++; else if (m.pct >= 50) bronzeCount++; else if (m.pct < 25) berryCount++; }
+        });
+
+        let comment = "";
+        let emoji = "";
+        if (total === 0) { comment = "Los geht's! Erstelle deinen ersten Task."; emoji = "🚀"; }
+        else if (pct === 100) { comment = "ALLES erledigt — du bist eine Maschine!"; emoji = "🏆"; }
+        else if (thisWeekPct === 100 && thisWeekTasks.length > 0 && streak >= 3) { comment = `${streak} Wochen in Folge Gold — nicht zu stoppen!`; emoji = "🔥"; }
+        else if (thisWeekPct === 100 && thisWeekTasks.length > 0) { comment = "Diese Woche Gold gesichert!"; emoji = "🥇"; }
+        else if (streak >= 5) { comment = `${streak} Wochen Streak — Wahnsinn, weiter so!`; emoji = "⚡"; }
+        else if (streak >= 3) { comment = `${streak}er Streak läuft — nicht abreissen lassen!`; emoji = "🔥"; }
+        else if (overdue > 5) { comment = `${overdue} überfällig — Himbeeren-Alarm! Aufholen!`; emoji = "🍇"; }
+        else if (overdue > 3) { comment = `${overdue} Tasks überfällig — jetzt Gas geben!`; emoji = "⚡"; }
+        else if (overdue > 0) { comment = `Noch ${overdue} aus vergangenen Wochen — du schaffst das!`; emoji = "👊"; }
+        else if (thisWeekPct >= 75) { comment = "Fast Gold diese Woche — Endspurt!"; emoji = "🏃"; }
+        else if (pct >= 75) { comment = "Zielgerade — bald alles erledigt!"; emoji = "🎯"; }
+        else if (thisWeekOpen <= 2 && thisWeekTasks.length > 0) { comment = `Nur noch ${thisWeekOpen} diese Woche — Vollgas!`; emoji = "✨"; }
+        else if (unplanned > 3) { comment = `${unplanned} Tasks warten auf Planung.`; emoji = "📋"; }
+        else if (berryCount > goldCount) { comment = "Mehr Himbeeren als Gold — das ändern wir!"; emoji = "💪"; }
+        else { comment = "Schritt für Schritt zum Ziel."; emoji = "👍"; }
+
+        return { total, done, open, pct, thisWeekDone, thisWeekOpen, thisWeekTasks: thisWeekTasks.length, thisWeekPct, overdue, unplanned, streak, level, thisWeekMedal, goldCount, silverCount, bronzeCount, berryCount, comment, emoji };
+      }, [tasks, now]);
+
+      useEffect(() => {
+        if (loaded.current) return;
+        loaded.current = true;
+        (async () => {
+          try {
+            const [cats, prios, tks, markers, goals] = await Promise.all([
+              SB.select("tm_categories", "order=sort_order"),
+              SB.select("tm_priorities", "order=level"),
+              SB.select("tm_tasks", "order=created_at"),
+              SB.select("tm_week_markers"),
+              SB.select("tm_month_goals"),
+            ]);
+            if (cats.length) setCategories(cats.map((c) => ({ id: c.id, name: c.name })));
+            else setCategories(INIT_CATS);
+            if (prios.length) setPriorities(prios.map((p) => ({ id: p.id, name: p.name, level: p.level, color: p.color })));
+            else setPriorities(INIT_PRIOS);
+            if (tks.length) setTasks(tks.map((t) => ({
+              id: t.id, title: t.title, categoryId: t.category_id, priorityId: t.priority_id,
+              week: t.week, year: t.year, day: t.day, done: t.done, icsExported: t.ics_exported || false,
+              tomatoes: t.tomatoes || 1, moves: t.moves || 0,
+            })));
+            if (markers.length) {
+              const m = {};
+              markers.forEach((mk) => {
+                const key = `${mk.year}-${mk.week}`;
+                if (!m[key]) m[key] = [];
+                m[key].push({ id: mk.id, text: mk.text, color: mk.color, fromDay: mk.from_day, toDay: mk.to_day });
+              });
+              setWeekMarkers(m);
+            }
+            if (goals && goals.length) {
+              const g = {};
+              goals.forEach((gl) => { g[`${gl.year}-${gl.month}|${gl.category_id}`] = gl.text; });
+              setMonthGoals(g);
+            }
+          } catch (e) { console.error("Supabase load error:", e); setCategories(INIT_CATS); setPriorities(INIT_PRIOS); }
+          setLoading(false);
+        })();
+      }, []);
+
+      const toggleWeekExpand = useCallback((week, year) => {
+        const key = `${year}-${week}`;
+        setExpandedWeeks((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+      }, []);
+
+      const openAddModal = useCallback((categoryId, priorityId, week, year, day) => {
+        setModal({
+          mode: "add",
+          task: { title: "", categoryId, priorityId: priorityId || sortedPrios[0]?.id, week: week ?? null, year: year ?? null, day: day ?? null },
+        });
+      }, [sortedPrios]);
+
+      const addTask = useCallback((data) => {
+        const id = uid();
+        const task = { id, title: data.title, categoryId: data.categoryId, priorityId: data.priorityId, week: data.week ?? null, year: data.year ?? null, day: data.day ?? null, done: false, tomatoes: data.tomatoes || 1, moves: 0 };
+        setTasks((ts) => [...ts, task]);
+        setModal(null);
+        SB.insert("tm_tasks", { id, title: task.title, category_id: task.categoryId, priority_id: task.priorityId, week: task.week, year: task.year, day: task.day, done: false, tomatoes: task.tomatoes, moves: 0 });
+      }, []);
+
+      const updateTask = useCallback((data) => {
+        setTasks((ts) => ts.map((t) => (t.id === data.id ? { ...t, ...data } : t)));
+        setModal(null);
+        SB.update("tm_tasks", data.id, { title: data.title, category_id: data.categoryId, priority_id: data.priorityId, week: data.week, year: data.year, day: data.day, done: data.done, tomatoes: data.tomatoes || 1 });
+      }, []);
+
+      const setTomatoes = useCallback((id, count) => {
+        setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, tomatoes: count } : t)));
+        SB.update("tm_tasks", id, { tomatoes: count });
+      }, []);
+
+      const deleteTask = useCallback((id) => {
+        setTasks((ts) => ts.filter((t) => t.id !== id));
+        SB.delete("tm_tasks", id);
+      }, []);
+
+      const toggleDone = useCallback((id) => {
+        setTasks((ts) => {
+          const t = ts.find((x) => x.id === id);
+          if (t) SB.update("tm_tasks", id, { done: !t.done });
+          return ts.map((x) => (x.id === id ? { ...x, done: !x.done } : x));
+        });
+      }, []);
+
+      const unscheduleTask = useCallback((id) => {
+        setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, week: null, year: null, day: null } : t)));
+        SB.update("tm_tasks", id, { week: null, year: null, day: null });
+      }, []);
+
+      /* ── Monatsziele ── */
+      const handleGoalChange = useCallback((goalKey, month, year, catId, text) => {
+        setMonthGoals((g) => ({ ...g, [goalKey]: text }));
+      }, []);
+
+      const saveGoal = useCallback((goalKey, month, year, catId) => {
+        const text = monthGoals[goalKey] || "";
+        if (text.trim()) {
+          SB.upsert("tm_month_goals", { month, year, category_id: catId, text: text.trim() }, "month,year,category_id");
+        } else {
+          SB.deleteWhere("tm_month_goals", `month=eq.${month}&year=eq.${year}&category_id=eq.${catId}`);
+        }
+      }, [monthGoals]);
+
+      const handleExportICS = useCallback((task) => {
+        const ok = exportICS(task, categories);
+        if (ok) {
+          setTasks((ts) => ts.map((t) => (t.id === task.id ? { ...t, icsExported: true } : t)));
+          SB.update("tm_tasks", task.id, { ics_exported: true });
+        }
+      }, [categories]);
+
+      const saveWeekMarker = useCallback((week, year, data) => {
+        const key = `${year}-${week}`;
+        setEditingMarker(null);
+        if (data.id) {
+          // Update existing marker
+          setWeekMarkers((m) => {
+            const arr = (m[key] || []).map((mk) => mk.id === data.id ? data : mk);
+            return { ...m, [key]: arr };
+          });
+          SB.update("tm_week_markers", data.id, { text: data.text, color: data.color, from_day: data.fromDay, to_day: data.toDay });
+        } else {
+          // New marker
+          const newId = uid();
+          const mk = { ...data, id: newId };
+          setWeekMarkers((m) => ({ ...m, [key]: [...(m[key] || []), mk] }));
+          SB.insert("tm_week_markers", { id: newId, week, year, text: data.text, color: data.color, from_day: data.fromDay, to_day: data.toDay });
+        }
+      }, []);
+
+      const removeWeekMarker = useCallback((week, year, markerId) => {
+        const key = `${year}-${week}`;
+        setEditingMarker(null);
+        setWeekMarkers((m) => {
+          const arr = (m[key] || []).filter((mk) => mk.id !== markerId);
+          const n = { ...m };
+          if (arr.length === 0) delete n[key]; else n[key] = arr;
+          return n;
+        });
+        SB.delete("tm_week_markers", markerId);
+      }, []);
+
+      const handleBoardDrop = useCallback((taskId, cellId) => {
+        const [catId, prioId] = cellId.replace("b|", "").split("|");
+        if (catId && prioId) {
+          setTasks((ts) => ts.map((t) => (t.id === taskId ? { ...t, categoryId: catId, priorityId: prioId } : t)));
+          SB.update("tm_tasks", taskId, { category_id: catId, priority_id: prioId });
+        }
+      }, []);
+
+      const handleTimelineDrop = useCallback((taskId, cellId) => {
+        const [prefix, ...rest] = cellId.split("|");
+        let patch = null;
+        switch (prefix) {
+          case "tw": patch = { week: +rest[0], year: +rest[1], day: null }; break;
+          case "tc": patch = { week: +rest[1], year: +rest[2], day: null }; break;
+          case "td": patch = { week: +rest[0], year: +rest[1], day: +rest[2] }; break;
+          case "tcd": patch = { week: +rest[1], year: +rest[2], day: +rest[3] }; break;
+        }
+        if (!patch) return;
+        setTasks((ts) => ts.map((t) => {
+          if (t.id !== taskId) return t;
+          // Nur zählen wenn sich Woche oder Tag tatsächlich ändert
+          const moved = (t.week !== patch.week || t.year !== patch.year || t.day !== patch.day) && t.week != null;
+          const newMoves = moved ? (t.moves || 0) + 1 : (t.moves || 0);
+          if (moved) patch.moves = newMoves;
+          return { ...t, week: patch.week, year: patch.year, day: patch.day, moves: newMoves };
+        }));
+        SB.update("tm_tasks", taskId, patch);
+      }, []);
+
+      if (loading) {
+        return (
+          <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-gray-100">
+            <div className="flex flex-col items-center gap-3 text-gray-400">
+              <Loader2 size={32} className="animate-spin text-blue-500" />
+              <span className="text-sm font-medium">Lade Tasks...</span>
+            </div>
+          </div>
+        );
+      }
+
+      if (isMobile) {
+        return <MobileInbox tasks={tasks} categories={categories} priorities={priorities}
+          onAdd={(data) => { const id = uid(); const task = { id, ...data, done: false, tomatoes: 1, moves: 0 }; setTasks((ts) => [...ts, task]); SB.insert("tm_tasks", { id, title: data.title, category_id: data.categoryId, priority_id: data.priorityId, week: null, year: null, day: null, done: false, tomatoes: 1, moves: 0 }); }}
+          onToggleDone={toggleDone} onDelete={deleteTask} showDone={showDone} setShowDone={setShowDone} />;
+      }
+
+      if (view === "settings") {
+        return <SettingsView categories={categories} setCategories={setCategories}
+          priorities={priorities} setPriorities={setPriorities} onBack={() => setView("main")} />;
+      }
+
+      return (
+        <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 to-gray-100 text-gray-800 overflow-hidden">
+          {/* Pomodoro Timer – ganz oben */}
+          <PomodoroBar />
+          {/* Header */}
+          <header className="flex items-center justify-between px-5 py-2.5 bg-white/90 backdrop-blur border-b border-gray-200 shrink-0">
+            <h1 className="text-lg font-bold flex items-center gap-2 text-gray-700">
+              <LayoutGrid size={20} className="text-blue-600" /> Task Manager
+            </h1>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setShowDone((s) => !s)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition ${showDone ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}
+                title={showDone ? "Erledigte ausblenden" : "Erledigte einblenden"}>
+                <Check size={13} /> {doneCount}/{tasks.length}
+              </button>
+              <button onClick={() => openAddModal(categories[0]?.id, sortedPrios[0]?.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition shadow-sm">
+                <Plus size={15} /> Neuer Task
+              </button>
+              <button onClick={() => setView("settings")} className="p-2 rounded-xl hover:bg-gray-100 transition text-gray-400">
+                <Settings size={18} />
+              </button>
+            </div>
+          </header>
+
+          {/* Stats Bar */}
+          <div className="px-5 pt-2 pb-1.5 shrink-0">
+            <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-2 shadow-sm border border-gray-100">
+              {/* Level & Motivation */}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-lg" title={`Level ${stats.level.level}: ${stats.level.name}`}>{stats.level.emoji}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Lv.{stats.level.level}</span>
+                    <span className="text-[10px] font-medium text-gray-500">{stats.level.name}</span>
+                    {stats.streak > 0 && <span className="text-[10px] font-bold text-orange-500" title={`${stats.streak} Wochen in Folge ≥75%`}>🔥 {stats.streak}w Streak</span>}
+                  </div>
+                  <span className="text-xs font-medium text-gray-600">{stats.emoji} {stats.comment}</span>
+                </div>
+              </div>
+              {/* KPIs */}
+              <div className="flex items-center gap-3 text-[10px]">
+                <div className="flex flex-col items-center" title="Diese Woche">
+                  <span className="font-bold text-sm text-blue-600">{stats.thisWeekDone}/{stats.thisWeekTasks}</span>
+                  <span className="text-gray-400">KW {now.week}</span>
+                </div>
+                <div className="w-px h-6 bg-gray-200" />
+                <div className="flex flex-col items-center" title="Überfällige Tasks">
+                  <span className={`font-bold text-sm ${stats.overdue > 0 ? "text-red-500" : "text-green-500"}`}>{stats.overdue}</span>
+                  <span className="text-gray-400">Überfällig</span>
+                </div>
+                <div className="w-px h-6 bg-gray-200" />
+                <div className="flex flex-col items-center" title="Noch offen">
+                  <span className="font-bold text-sm text-gray-700">{stats.open}</span>
+                  <span className="text-gray-400">Offen</span>
+                </div>
+                <div className="w-px h-6 bg-gray-200" />
+                {/* Medaillen-Sammlung */}
+                <div className="flex flex-col items-center" title="Medaillen-Sammlung">
+                  <div className="flex items-center gap-0.5 text-xs">
+                    <span>🥇</span><span className="font-bold text-gray-700">{stats.goldCount}</span>
+                    <span className="ml-0.5">🥈</span><span className="font-bold text-gray-700">{stats.silverCount}</span>
+                    <span className="ml-0.5">🥉</span><span className="font-bold text-gray-700">{stats.bronzeCount}</span>
+                    {stats.berryCount > 0 && <><span className="ml-0.5">🍇</span><span className="font-bold text-pink-500">{stats.berryCount}</span></>}
+                  </div>
+                  <span className="text-gray-400">Medaillen</span>
+                </div>
+              </div>
+              {/* Progress bar */}
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[10px] font-bold text-gray-500">{stats.pct}%</span>
+                <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden" title={`${stats.done} von ${stats.total} erledigt`}>
+                  <div className="h-full rounded-full transition-all duration-500" style={{width: `${stats.pct}%`, backgroundColor: stats.pct === 100 ? "#22c55e" : stats.pct >= 50 ? "#3b82f6" : "#f59e0b"}} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Prio Legend */}
+          <div className="px-5 pt-1 pb-0.5 flex items-center gap-3 shrink-0">
+            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Farblegende:</span>
+            {sortedPrios.map((p) => (
+              <span key={p.id} className="flex items-center gap-1 text-[10px] text-gray-500">
+                <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: p.color }} /> {p.name}
+              </span>
+            ))}
+          </div>
+
+          {/* Board */}
+          <section className={`px-4 pt-2 pb-1 ${timelineOpen ? "shrink-0" : "flex-1 min-h-0 flex flex-col"}`}>
+            <div className="flex items-center gap-3 mb-2 shrink-0">
+              <button onClick={() => setBoardOpen((s) => !s)} className="flex items-center gap-1.5 group">
+                <ChevronRight size={12} className={`text-gray-400 transition-transform ${boardOpen ? "rotate-90" : ""}`} />
+                <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 group-hover:text-gray-600 transition">
+                  <LayoutGrid size={11} /> Board
+                </h2>
+              </button>
+              {boardOpen && (
+                <button onClick={() => setBoardShowAll((s) => !s)}
+                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition ${boardShowAll ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500"}`}>
+                  {boardShowAll ? "Alle" : "Nur ungeplante"}
+                </button>
+              )}
+            </div>
+            {boardOpen && (() => {
+              const inboxTasks = visibleTasks
+                .filter((t) => boardShowAll || (!t.week && !t.year))
+                .sort((a, b) => {
+                  if (a.done !== b.done) return a.done ? 1 : -1;
+                  const aPrio = priorities.find((p) => p.id === a.priorityId)?.level ?? 999;
+                  const bPrio = priorities.find((p) => p.id === b.priorityId)?.level ?? 999;
+                  return aPrio - bPrio;
+                });
+              return (
+                <div className={`overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm ${timelineOpen ? "max-h-64" : "flex-1"}`}>
+                  <DropCell cellId={`b|${categories[0]?.id}|${sortedPrios[0]?.id}`} onDrop={handleBoardDrop}>
+                    <div className="flex flex-col gap-1 p-1.5">
+                      {inboxTasks.length === 0 && (
+                        <span className="text-xs text-gray-300 italic text-center py-3">Keine ungeplanten Tasks</span>
+                      )}
+                      {inboxTasks.map((t) => (
+                        <TaskCard key={t.id} task={t} priorities={priorities} categories={categories} onDragStart={() => {}}
+                          onEdit={(task) => setModal({ mode: "edit", task })} onDelete={deleteTask} onToggleDone={toggleDone} onExportICS={handleExportICS} onSetTomatoes={setTomatoes} />
+                      ))}
+                    </div>
+                  </DropCell>
+                </div>
+              );
+            })()}
+          </section>
+
+          {/* Divider */}
+          {boardOpen && timelineOpen && (
+          <div className="px-4 py-2 shrink-0 flex items-center gap-3">
+            <div className="flex-1 border-t-2 border-dashed border-gray-200" />
+            <span className="text-[9px] text-gray-300 font-bold uppercase tracking-widest whitespace-nowrap">Tasks nach unten ziehen zum Einplanen</span>
+            <div className="flex-1 border-t-2 border-dashed border-gray-200" />
+          </div>
+          )}
+
+          {/* Timeline */}
+          <section className={`px-4 pb-3 flex flex-col ${boardOpen ? "flex-1 min-h-0" : "flex-1 min-h-0"}`}>
+            <div className="flex items-center gap-3 mb-2 shrink-0">
+              <button onClick={() => setTimelineOpen((s) => !s)} className="flex items-center gap-1.5 group">
+                <ChevronRight size={12} className={`text-gray-400 transition-transform ${timelineOpen ? "rotate-90" : ""}`} />
+                <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 group-hover:text-gray-600 transition">
+                  <Calendar size={11} /> Zeitstrahl
+                </h2>
+              </button>
+            </div>
+            {timelineOpen && (
+            <div className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+              <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: 160 }} />
+                  {categories.map((c) => <col key={c.id} />)}
+                </colgroup>
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50 shadow-sm">
+                    <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 py-2 border-b border-gray-200">KW</th>
+                    {categories.map((c) => (
+                      <th key={c.id} className="text-center text-xs font-bold px-2 py-2 border-b border-gray-200 text-gray-700">{c.name}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {timeline.map((mo) => {
+                    const moKey = `${mo.year}-${mo.month}`;
+                    return (
+                    <Fragment key={`mo-${moKey}`}>
+                      <tr className="bg-gray-100/70 border-y border-gray-200">
+                        <td className="px-3 py-1.5 text-xs font-bold text-gray-600">
+                          {mo.label}
+                        </td>
+                        {categories.map((c) => {
+                          const goalKey = `${moKey}|${c.id}`;
+                          const goal = monthGoals[goalKey] || "";
+                          return (
+                            <td key={c.id} className="px-1 py-1 align-middle text-center">
+                              <input
+                                value={goal}
+                                onChange={(e) => handleGoalChange(goalKey, mo.month, mo.year, c.id, e.target.value)}
+                                onBlur={() => saveGoal(goalKey, mo.month, mo.year, c.id)}
+                                placeholder="Ziel..."
+                                className="w-full bg-transparent text-[10px] text-gray-500 placeholder-gray-300 px-1 py-0.5 rounded border border-transparent hover:border-gray-300 focus:border-blue-400 focus:bg-white focus:outline-none transition text-center"
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      {mo.weeks.map((w) => {
+                        const wKey = `${w.year}-${w.week}`;
+                        const isCurrent = w.week === now.week && w.year === now.year;
+                        const markers = weekMarkers[wKey] || [];
+                        const hasMarkers = markers.length > 0;
+                        const firstMarker = markers[0];
+                        const isExpanded = expandedWeeks.has(wKey);
+                        const weekDays = isExpanded ? getWeekDays(w.week, w.year) : [];
+                        // Statistik: IMMER auf Basis aller Tasks (unabhängig vom showDone-Filter)
+                        const weekAllTasksFull = tasks.filter((t) => t.week === w.week && t.year === w.year);
+                        const weekOpenTasksFull = weekAllTasksFull.filter((t) => !t.done);
+                        const weekDoneTasksFull = weekAllTasksFull.filter((t) => t.done);
+                        const weekPct = weekAllTasksFull.length > 0 ? Math.round((weekDoneTasksFull.length / weekAllTasksFull.length) * 100) : 0;
+                        const weekOpenTomatoes = weekOpenTasksFull.reduce((s, t) => s + (t.tomatoes || 0), 0);
+                        const weekTotalMin = weekOpenTomatoes * loadPomodoro().work;
+                        // Anzeige: abhängig vom showDone-Filter
+                        const weekAllTasks = visibleTasks.filter((t) => t.week === w.week && t.year === w.year);
+                        const weekOpenTasks = weekAllTasks.filter((t) => !t.done);
+                        const allDone = weekAllTasksFull.length > 0 && weekOpenTasksFull.length === 0;
+                        const medal = getWeekMedal(tasks, w.week, w.year, now.week, now.year);
+                        const isPast = w.year < now.year || (w.year === now.year && w.week < now.week);
+                        const todayDow = isCurrent ? (new Date().getDay() || 7) : 0;
+
+                        return (
+                          <Fragment key={`w-${wKey}`}>
+                            {isCurrent && (
+                              <tr className="bg-blue-100/70 border-t border-blue-200">
+                                <td colSpan={1 + categories.length} className="px-3 py-1">
+                                  <div className="flex items-center gap-3 text-[11px] flex-wrap">
+                                    <span className="font-bold text-blue-700 uppercase tracking-wider text-[10px]">📅 Aktuelle Woche</span>
+                                    <span className="font-bold text-blue-700 tabular-nums text-sm">{weekDoneTasksFull.length}/{weekAllTasksFull.length}</span>
+                                    <div className="w-32 h-1.5 bg-blue-200/60 rounded-full overflow-hidden" title={`${weekDoneTasksFull.length} von ${weekAllTasksFull.length} erledigt`}>
+                                      <div className="h-full rounded-full transition-all duration-500" style={{width: `${weekPct}%`, backgroundColor: weekPct === 100 ? "#22c55e" : weekPct >= 50 ? "#3b82f6" : "#f59e0b"}} />
+                                    </div>
+                                    <span className="font-bold text-blue-700 tabular-nums">{weekPct}%</span>
+                                    <span className="w-px h-4 bg-blue-300/60" />
+                                    <span className="flex items-center gap-1" title="Überfällige Tasks aus vergangenen Wochen">
+                                      <span className={`font-bold ${stats.overdue > 0 ? "text-red-500" : "text-green-600"}`}>{stats.overdue}</span>
+                                      <span className="text-gray-600">überfällig</span>
+                                    </span>
+                                    <span className="flex items-center gap-1" title="Offene Tasks diese Woche">
+                                      <span className="font-bold text-gray-700">{weekOpenTasksFull.length}</span>
+                                      <span className="text-gray-600">offen</span>
+                                    </span>
+                                    {weekOpenTomatoes > 0 && (<>
+                                      <span className="w-px h-4 bg-blue-300/60" />
+                                      <span className="flex items-center gap-1" title={`${weekOpenTomatoes} Tomatoes offen = ${weekTotalMin} min`}>
+                                        <span className="font-bold text-red-500">{weekOpenTomatoes}🍅</span>
+                                        <span className="text-gray-600">{weekTotalMin >= 60 ? `${Math.floor(weekTotalMin / 60)}h${weekTotalMin % 60 > 0 ? `${weekTotalMin % 60}m` : ""}` : `${weekTotalMin}m`}</span>
+                                      </span>
+                                    </>)}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            <tr className={allDone ? "opacity-50" : isCurrent && !hasMarkers ? "bg-blue-50/60" : "hover:bg-gray-50/50"}
+                              style={hasMarkers ? { backgroundColor: firstMarker.color } : undefined}>
+                              <td className={`px-1 py-0.5 text-[11px] font-mono border-b border-gray-100 align-top
+                                ${isCurrent && !hasMarkers ? "font-bold text-blue-600" : "text-gray-500"}`}>
+                                <DropCell cellId={`tw|${w.week}|${w.year}`} onDrop={handleTimelineDrop}
+                                  className="" style={{display:"flex",alignItems:"center",gap:"4px",flexWrap:"nowrap",minHeight:"22px",padding:"2px"}}>
+                                  <button onClick={() => toggleWeekExpand(w.week, w.year)}
+                                    className="p-0.5 rounded hover:bg-black/5 transition" style={{flexShrink:0}}>
+                                    <ChevronRight size={11} className={`transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                                  </button>
+                                  <span onClick={() => toggleWeekExpand(w.week, w.year)} style={{flexShrink:0,cursor:"pointer",whiteSpace:"nowrap"}}>
+                                    KW {w.week}
+                                  </span>
+                                  {medal && <span style={{flexShrink:0,fontSize:"11px",cursor:"default"}} title={`${medal.label}: ${medal.pct}% erledigt (${weekDoneTasksFull.length}/${weekAllTasksFull.length})`}>{medal.emoji}</span>}
+                                  {isCurrent && !hasMarkers && !medal && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" style={{flexShrink:0}} />}
+                                  {weekOpenTomatoes > 0 && (
+                                    <span className="text-[9px] text-red-400 font-medium whitespace-nowrap" style={{flexShrink:0}}
+                                      title={`${weekOpenTomatoes} 🍅 = ${weekTotalMin} min offen`}>
+                                      {weekOpenTomatoes}🍅{weekTotalMin >= 60 ? ` ${Math.floor(weekTotalMin / 60)}h${weekTotalMin % 60 > 0 ? weekTotalMin % 60 + "m" : ""}` : ` ${weekTotalMin}m`}
+                                    </span>
+                                  )}
+                                  {markers.map((mk) => (
+                                    <span key={mk.id} onClick={(e) => { e.stopPropagation(); setEditingMarker({ week: w.week, year: w.year, marker: mk }); }}
+                                      className="text-[10px] font-sans font-medium cursor-pointer hover:opacity-80 px-1 py-0.5 rounded"
+                                      style={{ backgroundColor: mk.color, color: "#374151", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100px" }}>
+                                      {mk.text}{(mk.fromDay !== 1 || mk.toDay !== 7) ? ` (${DAY_NAMES[mk.fromDay - 1]}-${DAY_NAMES[mk.toDay - 1]})` : ""}
+                                    </span>
+                                  ))}
+                                  <span onClick={(e) => { e.stopPropagation(); setEditingMarker({ week: w.week, year: w.year, marker: null }); }}
+                                    className="text-[10px] cursor-pointer font-bold bg-white/60 hover:bg-white rounded px-1 text-gray-500 hover:text-blue-600 transition"
+                                    style={{flexShrink:0}} title="Marker hinzufügen">
+                                    +
+                                  </span>
+                                </DropCell>
+                              </td>
+                              {!isExpanded && categories.map((c) => {
+                                const allCellTasks = visibleTasks.filter((t) => t.categoryId === c.id && t.week === w.week && t.year === w.year);
+                                const cellTasks = allCellTasks
+                                  .sort((a, b) => {
+                                    if (a.done !== b.done) return a.done ? 1 : -1;
+                                    const aPrio = priorities.find((p) => p.id === a.priorityId)?.level ?? 999;
+                                    const bPrio = priorities.find((p) => p.id === b.priorityId)?.level ?? 999;
+                                    if (aPrio !== bPrio) return aPrio - bPrio;
+                                    const aDay = a.day != null ? a.day : 999;
+                                    const bDay = b.day != null ? b.day : 999;
+                                    return aDay - bDay;
+                                  });
+                                return (
+                                  <td key={c.id} className="p-0.5 border-b border-gray-100 align-top">
+                                    <DropCell cellId={`tc|${c.id}|${w.week}|${w.year}`} onDrop={handleTimelineDrop}
+                                      onAdd={isPast ? undefined : (() => openAddModal(c.id, sortedPrios[0]?.id, w.week, w.year))}>
+                                      <div className="flex flex-col gap-0.5">
+                                        {cellTasks.map((t) => (
+                                          <TaskCard key={t.id} task={t} priorities={priorities} categories={categories} small onDragStart={() => {}}
+                                            onEdit={(task) => setModal({ mode: "edit", task })} onDelete={deleteTask}
+                                            onToggleDone={toggleDone} onUnschedule={unscheduleTask} onExportICS={handleExportICS} onSetTomatoes={setTomatoes} />
+                                        ))}
+                                      </div>
+                                    </DropCell>
+                                  </td>
+                                );
+                              })}
+                              {isExpanded && categories.map((c) => (
+                                <td key={c.id} className="p-0 border-b border-gray-100" />
+                              ))}
+                            </tr>
+
+                            {isExpanded && weekDays.map((d) => {
+                              const isWeekend = d.dayIndex >= 6;
+                              const isToday = isCurrent && d.dayIndex === todayDow;
+                              const dayMarker = markers.find((mk) => d.dayIndex >= mk.fromDay && d.dayIndex <= mk.toDay);
+                              const isDayMarked = !!dayMarker;
+                              return (
+                                <tr key={`d-${wKey}-${d.dayIndex}`}
+                                  className={isToday ? "bg-blue-50/80" : !isDayMarked && isWeekend ? "bg-gray-50/40" : ""}
+                                  style={isDayMarked && !isToday ? { backgroundColor: dayMarker.color } : isToday && isDayMarked ? { backgroundColor: dayMarker.color, boxShadow: "inset 0 0 0 2px #93c5fd" } : undefined}>
+                                  <td className={`pl-6 pr-1 py-0.5 text-[10px] border-b ${isToday ? "border-blue-100 text-blue-700 font-bold" : isWeekend ? "border-gray-50 text-gray-300" : "border-gray-50 text-gray-400"}`}>
+                                    {(() => {
+                                      const dayAllTasks = tasks.filter((t) => t.week === w.week && t.year === w.year && (t.day === d.dayIndex || (d.dayIndex === 1 && (t.day === null || t.day === undefined))));
+                                      const dayOpenTomatoes = dayAllTasks.filter((t) => !t.done).reduce((s, t) => s + (t.tomatoes || 0), 0);
+                                      const dayTotalMin = dayOpenTomatoes * loadPomodoro().work;
+                                      return (
+                                        <DropCell cellId={`td|${w.week}|${w.year}|${d.dayIndex}`} onDrop={handleTimelineDrop}
+                                          className="flex items-center gap-1.5 min-h-[22px]">
+                                          <span className="font-bold w-4">{d.name}</span>
+                                          <span className="font-mono text-gray-300">{d.dateStr}</span>
+                                          {dayOpenTomatoes > 0 && (
+                                            <span className="text-red-400 font-medium ml-auto whitespace-nowrap" title={`${dayOpenTomatoes} 🍅 = ${dayTotalMin} min offen`}>
+                                              {dayOpenTomatoes}🍅 {dayTotalMin >= 60 ? `${Math.floor(dayTotalMin / 60)}h${dayTotalMin % 60 > 0 ? `${dayTotalMin % 60}m` : ""}` : `${dayTotalMin}m`}
+                                            </span>
+                                          )}
+                                        </DropCell>
+                                      );
+                                    })()}
+                                  </td>
+                                  {categories.map((c) => {
+                                    const cellTasks = visibleTasks.filter((t) =>
+                                      t.categoryId === c.id && t.week === w.week && t.year === w.year &&
+                                      (t.day === d.dayIndex || (d.dayIndex === 1 && (t.day === null || t.day === undefined)))
+                                    ).sort((a, b) => {
+                                      if (a.done !== b.done) return a.done ? 1 : -1;
+                                      const aPrio = priorities.find((p) => p.id === a.priorityId)?.level ?? 999;
+                                      const bPrio = priorities.find((p) => p.id === b.priorityId)?.level ?? 999;
+                                      return aPrio - bPrio;
+                                    });
+                                    return (
+                                      <td key={c.id} className="p-0.5 border-b border-gray-50 align-top">
+                                        <DropCell cellId={`tcd|${c.id}|${w.week}|${w.year}|${d.dayIndex}`} onDrop={handleTimelineDrop}
+                                          onAdd={isPast ? undefined : (() => openAddModal(c.id, sortedPrios[0]?.id, w.week, w.year, d.dayIndex))}>
+                                          <div className="flex flex-col gap-0.5">
+                                            {cellTasks.map((t) => (
+                                              <TaskCard key={t.id} task={t} priorities={priorities} categories={categories} small onDragStart={() => {}}
+                                                onEdit={(task) => setModal({ mode: "edit", task })} onDelete={deleteTask}
+                                                onToggleDone={toggleDone} onUnschedule={unscheduleTask} onExportICS={handleExportICS} onSetTomatoes={setTomatoes} />
+                                            ))}
+                                          </div>
+                                        </DropCell>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            )}
+          </section>
+
+          {/* Task Modal */}
+          {modal && (
+            <TaskModal modal={modal} categories={categories} priorities={sortedPrios}
+              pomoWork={loadPomodoro().work}
+              onSave={(data) => modal.mode === "add" ? addTask(data) : updateTask(data)}
+              onClose={() => setModal(null)} />
+          )}
+
+          {/* Week Marker Popup */}
+          {editingMarker && (
+            <WeekMarkerPopup
+              marker={editingMarker.marker}
+              onSave={(data) => saveWeekMarker(editingMarker.week, editingMarker.year, data)}
+              onRemove={() => editingMarker.marker && removeWeekMarker(editingMarker.week, editingMarker.year, editingMarker.marker.id)}
+              onClose={() => setEditingMarker(null)} />
+          )}
+        </div>
+      );
+    }
+
+    /* ── Render ── */
+    ReactDOM.createRoot(document.getElementById("root")).render(<TaskManager />);
+  </script>
+</body>
+</html>
