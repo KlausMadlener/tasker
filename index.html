@@ -1403,31 +1403,36 @@
                 </button>
               )}
             </div>
-            {boardOpen && (() => {
-              const inboxTasks = visibleTasks
-                .filter((t) => boardShowAll || (!t.week && !t.year))
-                .sort((a, b) => {
-                  if (a.done !== b.done) return a.done ? 1 : -1;
-                  const aPrio = priorities.find((p) => p.id === a.priorityId)?.level ?? 999;
-                  const bPrio = priorities.find((p) => p.id === b.priorityId)?.level ?? 999;
-                  return aPrio - bPrio;
-                });
-              return (
-                <div className={`overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm ${timelineOpen ? "max-h-64" : "flex-1"}`}>
-                  <DropCell cellId={`b|${categories[0]?.id}|${sortedPrios[0]?.id}`} onDrop={handleBoardDrop}>
-                    <div className="flex flex-col gap-1 p-1.5">
-                      {inboxTasks.length === 0 && (
-                        <span className="text-xs text-gray-300 italic text-center py-3">Keine ungeplanten Tasks</span>
-                      )}
-                      {inboxTasks.map((t) => (
-                        <TaskCard key={t.id} task={t} priorities={priorities} categories={categories} onDragStart={() => {}}
-                          onEdit={(task) => setModal({ mode: "edit", task })} onDelete={deleteTask} onToggleDone={toggleDone} onExportICS={handleExportICS} onSetTomatoes={setTomatoes} />
-                      ))}
+            {boardOpen && (
+            <div className={`overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm ${timelineOpen ? "max-h-64" : "flex-1"}`}>
+              <div className="flex" style={{ minWidth: "fit-content" }}>
+                {categories.map((c) => {
+                  const colTasks = visibleTasks
+                    .filter((t) => t.categoryId === c.id && (boardShowAll || (!t.week && !t.year)))
+                    .sort((a, b) => {
+                      if (a.done !== b.done) return a.done ? 1 : -1;
+                      const aPrio = priorities.find((p) => p.id === a.priorityId)?.level ?? 999;
+                      const bPrio = priorities.find((p) => p.id === b.priorityId)?.level ?? 999;
+                      return aPrio - bPrio;
+                    });
+                  return (
+                    <div key={c.id} className="flex-1 min-w-0 border-r border-gray-100 last:border-r-0">
+                      <div className="text-center text-xs font-bold text-gray-700 px-2 py-1.5 bg-gray-50/80 border-b border-gray-100 sticky top-0">{c.name}</div>
+                      <DropCell cellId={`b|${c.id}|${sortedPrios[0]?.id}`} onDrop={handleBoardDrop}
+                        onAdd={() => openAddModal(c.id, sortedPrios[0]?.id)}>
+                        <div className="flex flex-col gap-1 p-1">
+                          {colTasks.map((t) => (
+                            <TaskCard key={t.id} task={t} priorities={priorities} categories={categories} small onDragStart={() => {}}
+                              onEdit={(task) => setModal({ mode: "edit", task })} onDelete={deleteTask} onToggleDone={toggleDone} onExportICS={handleExportICS} onSetTomatoes={setTomatoes} />
+                          ))}
+                        </div>
+                      </DropCell>
                     </div>
-                  </DropCell>
-                </div>
-              );
-            })()}
+                  );
+                })}
+              </div>
+            </div>
+            )}
           </section>
 
           {/* Divider */}
