@@ -744,8 +744,14 @@
       const sortedPrios = useMemo(() => [...priorities].sort((a, b) => a.level - b.level), [priorities]);
       const inboxTasks = useMemo(() => {
         const t = tasks.filter((t) => !t.week && !t.year);
-        return showDone ? t : t.filter((t) => !t.done);
-      }, [tasks, showDone]);
+        const filtered = showDone ? t : t.filter((t) => !t.done);
+        return filtered.sort((a, b) => {
+          if (a.done !== b.done) return a.done ? 1 : -1;
+          const aPrio = priorities.find((p) => p.id === a.priorityId)?.level ?? 999;
+          const bPrio = priorities.find((p) => p.id === b.priorityId)?.level ?? 999;
+          return aPrio - bPrio;
+        });
+      }, [tasks, showDone, priorities]);
       const scheduledCount = useMemo(() => tasks.filter((t) => t.week && t.year).length, [tasks]);
       const doneCount = useMemo(() => tasks.filter((t) => t.done).length, [tasks]);
 
