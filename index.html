@@ -1257,30 +1257,37 @@
       const handleBoardDrop = useCallback((taskId, cellId) => {
         const [catId, prioId] = cellId.replace("b|", "").split("|");
         if (catId && prioId) {
-          setTasks((ts) => ts.map((t) => (t.id === taskId ? { ...t, categoryId: catId, priorityId: prioId } : t)));
-          SB.update("tm_tasks", taskId, { category_id: catId, priority_id: prioId });
+          setTasks((ts) => ts.map((t) => {
+            if (t.id !== taskId) return t;
+            return { ...t, categoryId: catId, priorityId: prioId, week: null, year: null, day: null };
+          }));
+          SB.update("tm_tasks", taskId, { category_id: catId, priority_id: prioId, week: null, year: null, day: null });
         }
       }, []);
 
       const handleTimelineDrop = useCallback((taskId, cellId) => {
         const [prefix, ...rest] = cellId.split("|");
-        let patch = null;
+        let patch = {};
+        let catPatch = null;
         switch (prefix) {
           case "tw": patch = { week: +rest[0], year: +rest[1], day: null }; break;
-          case "tc": patch = { week: +rest[1], year: +rest[2], day: null }; break;
+          case "tc": patch = { week: +rest[1], year: +rest[2], day: null }; catPatch = rest[0]; break;
           case "td": patch = { week: +rest[0], year: +rest[1], day: +rest[2] }; break;
-          case "tcd": patch = { week: +rest[1], year: +rest[2], day: +rest[3] }; break;
+          case "tcd": patch = { week: +rest[1], year: +rest[2], day: +rest[3] }; catPatch = rest[0]; break;
+          default: return;
         }
-        if (!patch) return;
         setTasks((ts) => ts.map((t) => {
           if (t.id !== taskId) return t;
-          // Nur zählen wenn sich Woche oder Tag tatsächlich ändert
           const moved = (t.week !== patch.week || t.year !== patch.year || t.day !== patch.day) && t.week != null;
           const newMoves = moved ? (t.moves || 0) + 1 : (t.moves || 0);
           if (moved) patch.moves = newMoves;
-          return { ...t, week: patch.week, year: patch.year, day: patch.day, moves: newMoves };
+          const updated = { ...t, week: patch.week, year: patch.year, day: patch.day, moves: newMoves };
+          if (catPatch) updated.categoryId = catPatch;
+          return updated;
         }));
-        SB.update("tm_tasks", taskId, patch);
+        const sbPatch = { ...patch };
+        if (catPatch) sbPatch.category_id = catPatch;
+        SB.update("tm_tasks", taskId, sbPatch);
       }, []);
 
       if (loading) {
