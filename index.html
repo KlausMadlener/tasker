@@ -1054,7 +1054,7 @@
       const [expandedWeeks, setExpandedWeeks] = useState(new Set());
       const [loading, setLoading] = useState(true);
       const [boardShowAll, setBoardShowAll] = useState(false);
-      const [boardOpen, setBoardOpen] = useState(true);
+      const [boardOpen, setBoardOpen] = useState(false);
       const [timelineOpen, setTimelineOpen] = useState(true);
       const [monthGoals, setMonthGoals] = useState({});
       const loaded = useRef(false);
@@ -1400,13 +1400,16 @@
             ))}
           </div>
 
-          {/* Board */}
+          {/* Inbox (Board) */}
           <section className={`px-4 pt-2 pb-1 ${timelineOpen ? "shrink-0" : "flex-1 min-h-0 flex flex-col"}`}>
             <div className="flex items-center gap-3 mb-2 shrink-0">
               <button onClick={() => setBoardOpen((s) => !s)} className="flex items-center gap-1.5 group">
                 <ChevronRight size={12} className={`text-gray-400 transition-transform ${boardOpen ? "rotate-90" : ""}`} />
                 <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 group-hover:text-gray-600 transition">
-                  <LayoutGrid size={11} /> Board
+                  <LayoutGrid size={11} /> Inbox
+                  <span className="ml-1 text-[9px] font-semibold text-gray-300">
+                    {visibleTasks.filter((t) => !t.week && !t.year).length}
+                  </span>
                 </h2>
               </button>
               {boardOpen && (
