@@ -666,7 +666,7 @@
       const [title, setTitle] = useState(modal.task?.title || "");
       const [catId, setCatId] = useState(modal.task?.categoryId || categories[0]?.id);
       const [prioId, setPrioId] = useState(modal.task?.priorityId || priorities[0]?.id);
-      const [tomatoes, setTomatoes] = useState(modal.task?.tomatoes || 1);
+      const [tomatoes, setTomatoes] = useState(modal.task?.tomatoes ?? 1);
       const save = () => { if (!title.trim()) return; onSave({ ...modal.task, title: title.trim(), categoryId: catId, priorityId: prioId, tomatoes }); };
       return (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
@@ -698,10 +698,10 @@
               </div>
             </div>
             <div className="mb-5">
-              <label className="text-[10px] font-bold text-gray-400 mb-1.5 block uppercase tracking-widest">🍅 {tomatoes} Tomato{tomatoes !== 1 ? "s" : ""} = {tomatoes * pomoWork} min</label>
+              <label className="text-[10px] font-bold text-gray-400 mb-1.5 block uppercase tracking-widest">🍅 {tomatoes} Tomato{tomatoes !== 1 ? "s" : ""}{tomatoes > 0 ? ` = ${tomatoes * pomoWork} min` : ""}</label>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400">1</span>
-                <input type="range" min="1" max="5" step="1" value={tomatoes}
+                <input type="range" min="0" max="5" step="1" value={tomatoes}
                   onChange={(e) => setTomatoes(Number(e.target.value))}
                   className="flex-1 h-2 accent-red-500 cursor-pointer" />
                 <span className="text-xs text-gray-400">5</span>
@@ -916,10 +916,12 @@
     /* ═══════════════════════════════════════════════════
        SettingsView
        ═══════════════════════════════════════════════════ */
-    function SettingsView({ categories, setCategories, priorities, setPriorities, onBack }) {
+    function SettingsView({ categories, setCategories, priorities, setPriorities, clItems, onAddClItem, onDeleteClItem, onRenameClItem, onBack }) {
       const [newCat, setNewCat] = useState("");
       const [newPrio, setNewPrio] = useState("");
       const [newPrioColor, setNewPrioColor] = useState("#6366f1");
+      const [newVb, setNewVb] = useState("");
+      const [newNb, setNewNb] = useState("");
       const [pomo, setPomo] = useState(loadPomodoro);
       const updatePomo = (patch) => {
         const next = { ...pomo, ...patch };
@@ -1034,6 +1036,46 @@
                   <button onClick={addPrio} className="px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition"><Plus size={16} /></button>
                 </div>
               </section>
+              <section>
+                <h2 className="text-base font-bold mb-1">☀️ Vorbereitung Tag (VB)</h2>
+                <p className="text-xs text-gray-400 mb-3">Checkliste für den Morgen — wird täglich zurückgesetzt.</p>
+                <div className="space-y-2 mb-3">
+                  {(clItems || []).filter((i) => i.type === "vb").sort((a, b) => a.sortOrder - b.sortOrder).map((item) => (
+                    <div key={item.id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm">
+                      <input defaultValue={item.title}
+                        onBlur={(e) => onRenameClItem(item.id, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+                        className="flex-1 font-medium text-sm bg-transparent border border-transparent rounded-lg px-2 py-1 hover:border-gray-200 focus:border-blue-400 focus:bg-white focus:outline-none transition" />
+                      <button onClick={() => onDeleteClItem(item.id)} className="text-gray-300 hover:text-red-500 transition"><Trash2 size={15} /></button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input value={newVb} onChange={(e) => setNewVb(e.target.value)} placeholder="Neuer VB-Punkt..."
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" onKeyDown={(e) => { if (e.key === "Enter") { onAddClItem("vb", newVb); setNewVb(""); } }} />
+                  <button onClick={() => { if (newVb.trim()) { onAddClItem("vb", newVb.trim()); setNewVb(""); } }} className="px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition"><Plus size={16} /></button>
+                </div>
+              </section>
+              <section>
+                <h2 className="text-base font-bold mb-1">🌙 Nachbereitung Tag (NB)</h2>
+                <p className="text-xs text-gray-400 mb-3">Checkliste für den Abend — wird täglich zurückgesetzt.</p>
+                <div className="space-y-2 mb-3">
+                  {(clItems || []).filter((i) => i.type === "nb").sort((a, b) => a.sortOrder - b.sortOrder).map((item) => (
+                    <div key={item.id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm">
+                      <input defaultValue={item.title}
+                        onBlur={(e) => onRenameClItem(item.id, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+                        className="flex-1 font-medium text-sm bg-transparent border border-transparent rounded-lg px-2 py-1 hover:border-gray-200 focus:border-blue-400 focus:bg-white focus:outline-none transition" />
+                      <button onClick={() => onDeleteClItem(item.id)} className="text-gray-300 hover:text-red-500 transition"><Trash2 size={15} /></button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input value={newNb} onChange={(e) => setNewNb(e.target.value)} placeholder="Neuer NB-Punkt..."
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" onKeyDown={(e) => { if (e.key === "Enter") { onAddClItem("nb", newNb); setNewNb(""); } }} />
+                  <button onClick={() => { if (newNb.trim()) { onAddClItem("nb", newNb.trim()); setNewNb(""); } }} className="px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition"><Plus size={16} /></button>
+                </div>
+              </section>
             </div>
           </div>
         </div>
@@ -1058,8 +1100,12 @@
       const [boardOpen, setBoardOpen] = useState(false);
       const [timelineOpen, setTimelineOpen] = useState(true);
       const [monthGoals, setMonthGoals] = useState({});
+      const [clItems, setClItems] = useState([]);
+      const [clDone, setClDone] = useState(new Set());
+      const [clOpen, setClOpen] = useState(null); // null | 'vb' | 'nb'
       const loaded = useRef(false);
       const isMobile = useIsMobile();
+      const todayStr = useMemo(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }, []);
 
       const timeline = useMemo(() => buildTimeline(12), []);
       const sortedPrios = useMemo(() => [...priorities].sort((a, b) => a.level - b.level), [priorities]);
@@ -1118,12 +1164,14 @@
         loaded.current = true;
         (async () => {
           try {
-            const [cats, prios, tks, markers, goals] = await Promise.all([
+            const [cats, prios, tks, markers, goals, clItemsRaw, clDoneRaw] = await Promise.all([
               SB.select("tm_categories", "order=sort_order"),
               SB.select("tm_priorities", "order=level"),
               SB.select("tm_tasks", "order=created_at"),
               SB.select("tm_week_markers"),
               SB.select("tm_month_goals"),
+              SB.select("tm_checklist_items", "order=sort_order"),
+              SB.select("tm_checklist_done", `done_date=eq.${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`),
             ]);
             if (cats.length) setCategories(cats.map((c) => ({ id: c.id, name: c.name })));
             else setCategories(INIT_CATS);
@@ -1147,6 +1195,12 @@
               const g = {};
               goals.forEach((gl) => { g[`${gl.year}-${gl.month}|${gl.category_id}`] = gl.text; });
               setMonthGoals(g);
+            }
+            if (clItemsRaw && clItemsRaw.length) {
+              setClItems(clItemsRaw.map((i) => ({ id: i.id, type: i.list_type, title: i.title, sortOrder: i.sort_order })));
+            }
+            if (clDoneRaw && clDoneRaw.length) {
+              setClDone(new Set(clDoneRaw.map((d) => d.item_id)));
             }
           } catch (e) { console.error("Supabase load error:", e); setCategories(INIT_CATS); setPriorities(INIT_PRIOS); }
           setLoading(false);
@@ -1176,7 +1230,7 @@
       const updateTask = useCallback((data) => {
         setTasks((ts) => ts.map((t) => (t.id === data.id ? { ...t, ...data } : t)));
         setModal(null);
-        SB.update("tm_tasks", data.id, { title: data.title, category_id: data.categoryId, priority_id: data.priorityId, week: data.week, year: data.year, day: data.day, done: data.done, tomatoes: data.tomatoes || 1 });
+        SB.update("tm_tasks", data.id, { title: data.title, category_id: data.categoryId, priority_id: data.priorityId, week: data.week, year: data.year, day: data.day, done: data.done, tomatoes: data.tomatoes ?? 0 });
       }, []);
 
       const setTomatoes = useCallback((id, count) => {
@@ -1215,6 +1269,44 @@
           SB.deleteWhere("tm_month_goals", `month=eq.${month}&year=eq.${year}&category_id=eq.${catId}`);
         }
       }, [monthGoals]);
+
+      /* ── Checklisten ── */
+      const toggleClDone = useCallback((itemId) => {
+        setClDone((prev) => {
+          const next = new Set(prev);
+          if (next.has(itemId)) {
+            next.delete(itemId);
+            SB.deleteWhere("tm_checklist_done", `item_id=eq.${itemId}&done_date=eq.${todayStr}`);
+          } else {
+            next.add(itemId);
+            SB.insert("tm_checklist_done", { id: uid(), item_id: itemId, done_date: todayStr });
+          }
+          return next;
+        });
+      }, [todayStr]);
+
+      const addClItem = useCallback((type, title) => {
+        const id = uid();
+        const sortOrder = clItems.filter((i) => i.type === type).length;
+        setClItems((items) => [...items, { id, type, title, sortOrder }]);
+        SB.insert("tm_checklist_items", { id, list_type: type, title, sort_order: sortOrder });
+      }, [clItems]);
+
+      const deleteClItem = useCallback((id) => {
+        setClItems((items) => items.filter((i) => i.id !== id));
+        SB.delete("tm_checklist_items", id);
+      }, []);
+
+      const renameClItem = useCallback((id, title) => {
+        if (!title.trim()) return;
+        setClItems((items) => items.map((i) => i.id === id ? { ...i, title: title.trim() } : i));
+        SB.update("tm_checklist_items", id, { title: title.trim() });
+      }, []);
+
+      const clVbItems = useMemo(() => clItems.filter((i) => i.type === "vb").sort((a, b) => a.sortOrder - b.sortOrder), [clItems]);
+      const clNbItems = useMemo(() => clItems.filter((i) => i.type === "nb").sort((a, b) => a.sortOrder - b.sortOrder), [clItems]);
+      const clVbDoneCount = useMemo(() => clVbItems.filter((i) => clDone.has(i.id)).length, [clVbItems, clDone]);
+      const clNbDoneCount = useMemo(() => clNbItems.filter((i) => clDone.has(i.id)).length, [clNbItems, clDone]);
 
       const handleExportICS = useCallback((task) => {
         const ok = exportICS(task, categories);
@@ -1310,7 +1402,9 @@
 
       if (view === "settings") {
         return <SettingsView categories={categories} setCategories={setCategories}
-          priorities={priorities} setPriorities={setPriorities} onBack={() => setView("main")} />;
+          priorities={priorities} setPriorities={setPriorities}
+          clItems={clItems} onAddClItem={addClItem} onDeleteClItem={deleteClItem} onRenameClItem={renameClItem}
+          onBack={() => setView("main")} />;
       }
 
       return (
@@ -1390,6 +1484,51 @@
               </div>
             </div>
           </div>
+
+          {/* Checklist Buttons */}
+          {(clVbItems.length > 0 || clNbItems.length > 0) && (
+          <div className="px-5 pt-1.5 pb-0.5 flex items-center gap-2 shrink-0">
+            {clVbItems.length > 0 && (
+              <button onClick={() => setClOpen(clOpen === "vb" ? null : "vb")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition border ${clOpen === "vb" ? "bg-amber-100 border-amber-300 text-amber-800" : clVbDoneCount === clVbItems.length ? "bg-green-50 border-green-200 text-green-700" : "bg-white border-gray-200 text-gray-600 hover:border-amber-300"}`}>
+                <span>☀️</span> VB Tag
+                <span className={`text-[10px] font-bold ${clVbDoneCount === clVbItems.length ? "text-green-500" : "text-gray-400"}`}>{clVbDoneCount}/{clVbItems.length}</span>
+              </button>
+            )}
+            {clNbItems.length > 0 && (
+              <button onClick={() => setClOpen(clOpen === "nb" ? null : "nb")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition border ${clOpen === "nb" ? "bg-indigo-100 border-indigo-300 text-indigo-800" : clNbDoneCount === clNbItems.length ? "bg-green-50 border-green-200 text-green-700" : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300"}`}>
+                <span>🌙</span> NB Tag
+                <span className={`text-[10px] font-bold ${clNbDoneCount === clNbItems.length ? "text-green-500" : "text-gray-400"}`}>{clNbDoneCount}/{clNbItems.length}</span>
+              </button>
+            )}
+          </div>
+          )}
+          {/* Checklist Popup */}
+          {clOpen && (
+          <div className="px-5 pb-1 shrink-0">
+            <div className={`rounded-xl border shadow-sm p-3 ${clOpen === "vb" ? "bg-amber-50 border-amber-200" : "bg-indigo-50 border-indigo-200"}`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-bold text-gray-700">{clOpen === "vb" ? "☀️ Vorbereitung Tag" : "🌙 Nachbereitung Tag"}</h3>
+                <button onClick={() => setClOpen(null)} className="text-gray-400 hover:text-gray-600 transition"><X size={14} /></button>
+              </div>
+              <div className="space-y-1">
+                {(clOpen === "vb" ? clVbItems : clNbItems).map((item) => {
+                  const done = clDone.has(item.id);
+                  return (
+                    <button key={item.id} onClick={() => toggleClDone(item.id)}
+                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-sm transition ${done ? "bg-white/60 text-gray-400 line-through" : "bg-white text-gray-700 hover:bg-white/80"}`}>
+                      <span className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition ${done ? "bg-green-500 border-green-500 text-white" : "border-gray-300"}`}>
+                        {done && <Check size={10} strokeWidth={3} />}
+                      </span>
+                      {item.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          )}
 
           {/* Prio Legend */}
           <div className="px-5 pt-1 pb-0.5 flex items-center gap-3 shrink-0">
