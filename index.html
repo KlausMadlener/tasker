@@ -1543,7 +1543,10 @@
 
           {/* Inbox (Board) */}
           <section className={`px-4 pt-2 pb-1 ${timelineOpen ? "shrink-0" : "flex-1 min-h-0 flex flex-col"}`}>
-            <div className="flex items-center gap-3 mb-2 shrink-0">
+            <div className="flex items-center gap-3 mb-2 shrink-0"
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; e.currentTarget.classList.add("ring-2", "ring-blue-400", "rounded-lg"); }}
+              onDragLeave={(e) => { e.currentTarget.classList.remove("ring-2", "ring-blue-400", "rounded-lg"); }}
+              onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove("ring-2", "ring-blue-400", "rounded-lg"); const tid = e.dataTransfer.getData("text/plain"); if (tid) { setTasks((ts) => ts.map((t) => t.id === tid ? { ...t, week: null, year: null, day: null } : t)); SB.update("tm_tasks", tid, { week: null, year: null, day: null }); } }}>
               <button onClick={() => setBoardOpen((s) => !s)} className="flex items-center gap-1.5 group">
                 <ChevronRight size={12} className={`text-gray-400 transition-transform ${boardOpen ? "rotate-90" : ""}`} />
                 <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 group-hover:text-gray-600 transition">
@@ -1629,17 +1632,32 @@
                 <tbody>
                   {timeline.map((mo) => {
                     const moKey = `${mo.year}-${mo.month}`;
+                    const isPastMonth = mo.year < now.year || (mo.year === now.year && mo.month < new Date().getMonth());
+                    const moAllTasks = tasks.filter((t) => mo.weeks.some((w) => t.week === w.week && t.year === w.year));
+                    const moOpenTasks = moAllTasks.filter((t) => !t.done);
+                    const moVisibleTasks = visibleTasks.filter((t) => mo.weeks.some((w) => t.week === w.week && t.year === w.year));
+                    const moCollapsed = isPastMonth && moVisibleTasks.length === 0;
+                    const moDonePct = moAllTasks.length > 0 ? Math.round((moAllTasks.filter((t) => t.done).length / moAllTasks.length) * 100) : 0;
                     return (
                     <Fragment key={`mo-${moKey}`}>
                       <tr className="bg-gray-100/70 border-y border-gray-200">
                         <td className="px-3 py-1.5 text-xs font-bold text-gray-600">
-                          {mo.label}
+                          <div className="flex items-center gap-2">
+                            <span>{mo.label}</span>
+                            {moCollapsed && moAllTasks.length > 0 && (
+                              <span className="text-[10px] font-medium text-gray-400">
+                                {moAllTasks.filter((t) => t.done).length}/{moAllTasks.length} erledigt ({moDonePct}%)
+                                {moOpenTasks.length > 0 && <span className="text-amber-500 ml-1">{moOpenTasks.length} offen</span>}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         {categories.map((c) => {
                           const goalKey = `${moKey}|${c.id}`;
                           const goal = monthGoals[goalKey] || "";
                           return (
                             <td key={c.id} className="px-1 py-1 align-middle text-center">
+                              {!moCollapsed ? (
                               <input
                                 value={goal}
                                 onChange={(e) => handleGoalChange(goalKey, mo.month, mo.year, c.id, e.target.value)}
@@ -1647,11 +1665,14 @@
                                 placeholder="Ziel..."
                                 className="w-full bg-transparent text-[10px] text-gray-500 placeholder-gray-300 px-1 py-0.5 rounded border border-transparent hover:border-gray-300 focus:border-blue-400 focus:bg-white focus:outline-none transition text-center"
                               />
+                              ) : goal ? (
+                                <span className="text-[10px] text-gray-400">{goal}</span>
+                              ) : null}
                             </td>
                           );
                         })}
                       </tr>
-                      {mo.weeks.map((w) => {
+                      {!moCollapsed && mo.weeks.map((w) => {
                         const wKey = `${w.year}-${w.week}`;
                         const isCurrent = w.week === now.week && w.year === now.year;
                         const markers = weekMarkers[wKey] || [];
