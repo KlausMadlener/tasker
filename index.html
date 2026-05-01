@@ -1543,10 +1543,10 @@
 
           {/* Inbox (Board) */}
           <section className={`px-4 pt-2 pb-1 ${timelineOpen ? "shrink-0" : "flex-1 min-h-0 flex flex-col"}`}>
-            <div className="flex items-center gap-3 mb-2 shrink-0"
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; e.currentTarget.classList.add("ring-2", "ring-blue-400", "rounded-lg"); }}
-              onDragLeave={(e) => { e.currentTarget.classList.remove("ring-2", "ring-blue-400", "rounded-lg"); }}
-              onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove("ring-2", "ring-blue-400", "rounded-lg"); const tid = e.dataTransfer.getData("text/plain"); if (tid) { setTasks((ts) => ts.map((t) => t.id === tid ? { ...t, week: null, year: null, day: null } : t)); SB.update("tm_tasks", tid, { week: null, year: null, day: null }); } }}>
+            <div className="flex items-center gap-3 mb-2 shrink-0 rounded-lg transition-all"
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; e.currentTarget.style.outline = "2px solid #60a5fa"; e.currentTarget.style.background = "#eff6ff"; }}
+              onDragLeave={(e) => { e.currentTarget.style.outline = ""; e.currentTarget.style.background = ""; }}
+              onDrop={(e) => { e.preventDefault(); e.currentTarget.style.outline = ""; e.currentTarget.style.background = ""; const tid = e.dataTransfer.getData("text/plain"); if (tid) { setTasks((ts) => ts.map((t) => t.id === tid ? { ...t, week: null, year: null, day: null } : t)); SB.update("tm_tasks", tid, { week: null, year: null, day: null }); } }}>
               <button onClick={() => setBoardOpen((s) => !s)} className="flex items-center gap-1.5 group">
                 <ChevronRight size={12} className={`text-gray-400 transition-transform ${boardOpen ? "rotate-90" : ""}`} />
                 <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 group-hover:text-gray-600 transition">
