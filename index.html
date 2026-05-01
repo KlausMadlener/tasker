@@ -410,13 +410,14 @@
       return Math.ceil(((d - y1) / 864e5 + 1) / 7);
     }
 
-    function buildTimeline(monthCount = 6) {
+    function buildTimeline(monthCount = 6, pastMonths = 1) {
       const now = new Date();
       const months = [];
       const usedWeeks = new Set();
-      for (let m = 0; m < monthCount; m++) {
-        const yr = now.getFullYear() + Math.floor((now.getMonth() + m) / 12);
-        const mo = (now.getMonth() + m) % 12;
+      for (let m = -pastMonths; m < monthCount; m++) {
+        const raw = now.getMonth() + m;
+        const yr = now.getFullYear() + Math.floor(raw / 12);
+        const mo = ((raw % 12) + 12) % 12;
         const label = new Date(yr, mo, 1).toLocaleDateString("de-DE", { month: "long", year: "numeric" });
         const dim = new Date(yr, mo + 1, 0).getDate();
         const weeks = [];
